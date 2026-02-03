@@ -65,22 +65,22 @@ contract MockERC20 {
 /// @dev Call `simulateYield()` to increase `totalAssets` without minting new shares,
 ///      which makes existing shares worth more (mimicking real vault yield).
 contract MockERC4626 {
-    IERC20 public immutable underlying;
+    IERC20 public immutable UNDERLYING;
 
     mapping(address => uint256) public shares;
     uint256 public totalShares;
     uint256 public totalAssets;
 
     constructor(address _asset) {
-        underlying = IERC20(_asset);
+        UNDERLYING = IERC20(_asset);
     }
 
     function asset() external view returns (address) {
-        return address(underlying);
+        return address(UNDERLYING);
     }
 
     function deposit(uint256 assets, address receiver) external returns (uint256 newShares) {
-        underlying.transferFrom(msg.sender, address(this), assets);
+        require(UNDERLYING.transferFrom(msg.sender, address(this), assets), 'transferFrom failed');
 
         newShares = (totalShares == 0) ? assets : (assets * totalShares) / totalAssets;
 
@@ -98,7 +98,7 @@ contract MockERC4626 {
         totalShares -= sharesToRedeem;
         totalAssets -= assets;
 
-        underlying.transfer(receiver, assets);
+        require(UNDERLYING.transfer(receiver, assets), 'transfer failed');
     }
 
     function convertToAssets(uint256 sharesToConvert) external view returns (uint256) {
@@ -113,7 +113,7 @@ contract MockERC4626 {
     /// @notice Simulate yield accrual by injecting additional assets into the vault.
     /// @dev Caller must have approved this contract for `yieldAmount` of the underlying token.
     function simulateYield(uint256 yieldAmount) external {
-        underlying.transferFrom(msg.sender, address(this), yieldAmount);
+        require(UNDERLYING.transferFrom(msg.sender, address(this), yieldAmount), 'transferFrom failed');
         totalAssets += yieldAmount;
     }
 }
@@ -148,23 +148,23 @@ contract MockAggregatorV3 {
 
 /// @notice Helper contract to add liquidity to a Uniswap v4 pool via the unlock callback pattern.
 contract LiquidityHelper is IUnlockCallback {
-    IPoolManager public immutable manager;
+    IPoolManager public immutable MANAGER;
 
     constructor(IPoolManager _manager) {
-        manager = _manager;
+        MANAGER = _manager;
     }
 
     function addLiquidity(PoolKey memory key, int256 liquidityDelta, int24 tickLower, int24 tickUpper) external {
-        manager.unlock(abi.encode(key, liquidityDelta, tickLower, tickUpper, msg.sender));
+        MANAGER.unlock(abi.encode(key, liquidityDelta, tickLower, tickUpper, msg.sender));
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        require(msg.sender == address(manager), 'LiquidityHelper: not manager');
+        require(msg.sender == address(MANAGER), 'LiquidityHelper: not manager');
 
         (PoolKey memory key, int256 liquidityDelta, int24 tickLower, int24 tickUpper, address payer) =
             abi.decode(data, (PoolKey, int256, int24, int24, address));
 
-        (BalanceDelta delta,) = manager.modifyLiquidity(
+        (BalanceDelta delta,) = MANAGER.modifyLiquidity(
             key,
             ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -179,24 +179,24 @@ contract LiquidityHelper is IUnlockCallback {
         if (delta.amount0() < 0) {
             uint256 amount = uint256(uint128(-delta.amount0()));
             address token = Currency.unwrap(key.currency0);
-            manager.sync(key.currency0);
-            IERC20(token).transferFrom(payer, address(manager), amount);
-            manager.settle();
+            MANAGER.sync(key.currency0);
+            require(IERC20(token).transferFrom(payer, address(MANAGER), amount), 'transferFrom failed');
+            MANAGER.settle();
         }
         if (delta.amount1() < 0) {
             uint256 amount = uint256(uint128(-delta.amount1()));
             address token = Currency.unwrap(key.currency1);
-            manager.sync(key.currency1);
-            IERC20(token).transferFrom(payer, address(manager), amount);
-            manager.settle();
+            MANAGER.sync(key.currency1);
+            require(IERC20(token).transferFrom(payer, address(MANAGER), amount), 'transferFrom failed');
+            MANAGER.settle();
         }
 
         // Claim tokens the pool owes us (positive deltas)
         if (delta.amount0() > 0) {
-            manager.take(key.currency0, payer, uint256(int256(delta.amount0())));
+            MANAGER.take(key.currency0, payer, uint256(int256(delta.amount0())));
         }
         if (delta.amount1() > 0) {
-            manager.take(key.currency1, payer, uint256(int256(delta.amount1())));
+            MANAGER.take(key.currency1, payer, uint256(int256(delta.amount1())));
         }
 
         return '';
@@ -205,23 +205,23 @@ contract LiquidityHelper is IUnlockCallback {
 
 /// @notice Helper contract to execute swaps on a Uniswap v4 pool (used to move price in tests).
 contract SwapHelper is IUnlockCallback {
-    IPoolManager public immutable manager;
+    IPoolManager public immutable MANAGER;
 
     constructor(IPoolManager _manager) {
-        manager = _manager;
+        MANAGER = _manager;
     }
 
     function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, address payer) external {
-        manager.unlock(abi.encode(key, zeroForOne, amountSpecified, payer));
+        MANAGER.unlock(abi.encode(key, zeroForOne, amountSpecified, payer));
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        require(msg.sender == address(manager), 'SwapHelper: not manager');
+        require(msg.sender == address(MANAGER), 'SwapHelper: not manager');
 
         (PoolKey memory key, bool zeroForOne, int256 amountSpecified, address payer) =
             abi.decode(data, (PoolKey, bool, int256, address));
 
-        BalanceDelta delta = manager.swap(
+        BalanceDelta delta = MANAGER.swap(
             key,
             SwapParams({
                 zeroForOne: zeroForOne,
@@ -235,24 +235,24 @@ contract SwapHelper is IUnlockCallback {
         if (delta.amount0() < 0) {
             uint256 amount = uint256(uint128(-delta.amount0()));
             address token = Currency.unwrap(key.currency0);
-            manager.sync(key.currency0);
-            IERC20(token).transferFrom(payer, address(manager), amount);
-            manager.settle();
+            MANAGER.sync(key.currency0);
+            require(IERC20(token).transferFrom(payer, address(MANAGER), amount), 'transferFrom failed');
+            MANAGER.settle();
         }
         if (delta.amount1() < 0) {
             uint256 amount = uint256(uint128(-delta.amount1()));
             address token = Currency.unwrap(key.currency1);
-            manager.sync(key.currency1);
-            IERC20(token).transferFrom(payer, address(manager), amount);
-            manager.settle();
+            MANAGER.sync(key.currency1);
+            require(IERC20(token).transferFrom(payer, address(MANAGER), amount), 'transferFrom failed');
+            MANAGER.settle();
         }
 
         // Claim tokens the pool owes us (positive deltas)
         if (delta.amount0() > 0) {
-            manager.take(key.currency0, payer, uint256(int256(delta.amount0())));
+            MANAGER.take(key.currency0, payer, uint256(int256(delta.amount0())));
         }
         if (delta.amount1() > 0) {
-            manager.take(key.currency1, payer, uint256(int256(delta.amount1())));
+            MANAGER.take(key.currency1, payer, uint256(int256(delta.amount1())));
         }
 
         return abi.encode(delta);
@@ -395,7 +395,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey
         );
         vm.stopPrank();
 
@@ -468,7 +468,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.GHOST_ORDER, minDelay, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.GHOST_ORDER, minDelay, 0, poolKey
         );
         vm.stopPrank();
 
@@ -525,7 +525,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey
         );
         vm.stopPrank();
 
@@ -590,7 +590,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey
         );
         vm.stopPrank();
 
@@ -639,7 +639,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey
         );
         vm.stopPrank();
 
@@ -673,7 +673,7 @@ contract GhostVaultHookTest is Test {
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
         uint256 orderId = hook.commitOrder(
-            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey
         );
         vm.stopPrank();
 
@@ -698,7 +698,7 @@ contract GhostVaultHookTest is Test {
 
         vm.startPrank(user);
         usdc.approve(address(hook), depositAmount);
-        hook.commitOrder(address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, poolKey);
+        hook.commitOrder(address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, 0, poolKey);
         vm.stopPrank();
 
         // Oracle at $2,500 - below the $3,000 target
@@ -710,5 +710,44 @@ contract GhostVaultHookTest is Test {
         vm.prank(solver);
         vm.expectRevert(GhostVaultHook.PriceConditionNotMet.selector);
         hook.executeOrder(0, reveal);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Test 8: Slippage Protection
+    // ─────────────────────────────────────────────────────────────
+
+    /// @notice Verifies that execution reverts when swap output is below minAmountOut.
+    ///         The user sets an unrealistically high minAmountOut that the pool can't satisfy.
+    function test_SlippageProtection() public {
+        uint256 depositAmount = 10_000e6;
+        uint256 targetPrice = 3000e8;
+        bool zeroForOne = true;
+        bytes32 salt = keccak256('slippage');
+        bytes32 intentHash = keccak256(abi.encode(targetPrice, zeroForOne, salt));
+
+        // Set minAmountOut absurdly high — 1,000 WETH for 10k USDC is impossible
+        uint256 minAmountOut = 1_000e18;
+
+        vm.startPrank(user);
+        usdc.approve(address(hook), depositAmount);
+        uint256 orderId = hook.commitOrder(
+            address(usdc), depositAmount, intentHash, GhostVaultHook.OrderType.YIELD_ORDER, 0, minAmountOut, poolKey
+        );
+        vm.stopPrank();
+
+        // Satisfy price condition
+        vm.warp(block.timestamp + 1 days);
+        oracle.setPrice(3000e8);
+
+        GhostVaultHook.RevealData memory reveal =
+            GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
+
+        vm.prank(solver);
+        vm.expectRevert(GhostVaultHook.SlippageExceeded.selector);
+        hook.executeOrder(orderId, reveal);
+
+        // Confirm order remains active
+        (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
+        assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.ACTIVE));
     }
 }

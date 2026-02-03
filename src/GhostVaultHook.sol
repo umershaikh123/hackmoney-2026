@@ -76,6 +76,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         bytes32 intentHash; // keccak256(abi.encode(targetPrice, zeroForOne, salt))
         uint256 createdAt;
         uint256 minDelay; // GhostOrder only: minimum seconds before execution
+        uint256 minAmountOut; // Minimum output tokens user accepts (0 = no limit)
         PoolKey poolKey;
     }
 
@@ -110,6 +111,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     /// @notice Order storage indexed by order ID.
     mapping(uint256 => GhostOrder) public orders;
 
+    /// @notice Vault snapshotted per order at commit time.
+    /// @dev Stored separately from GhostOrder to avoid stack-too-deep with via_ir=false.
+    ///      Immune to later owner changes to yieldRegistry.
+    mapping(uint256 => IERC4626) public orderVaults;
+
     /// @notice Maps a token address to its ERC-4626 vault configuration.
     mapping(address => YieldConfig) public yieldRegistry;
 
@@ -117,8 +123,9 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     // solhint-disable-next-line var-name-mixedcase
     AggregatorV3Interface public immutable PRICE_FEED;
 
-    /// @notice Maximum allowed deviation between pool and oracle prices (basis points).
-    uint256 public constant MAX_PRICE_DEVIATION_BPS = 200; // 2%
+    /// @notice Contract deployer; only address allowed to configure yield vaults.
+    // solhint-disable-next-line var-name-mixedcase
+    address public immutable OWNER;
 
     /// @notice Percentage of accrued yield paid to the solver/agent (basis points).
     uint256 public constant SOLVER_FEE_BPS = 100; // 1%
@@ -177,10 +184,12 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     error HashMismatch();
     error PriceConditionNotMet();
     error DelayNotElapsed();
-    error OraclePriceDeviation(uint256 poolPrice, uint256 oraclePrice);
     error OracleStale(uint256 updatedAt, uint256 currentTime);
     error OnlyPoolManager();
     error InsufficientVaultLiquidity();
+    error NotOwner();
+    error VaultAssetMismatch();
+    error SlippageExceeded();
 
     // ─────────────────────────────────────────────────────────────
     //  Constructor
@@ -190,6 +199,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     /// @param _priceFeed Chainlink AggregatorV3 price feed (e.g. ETH/USD on Base).
     constructor(IPoolManager _manager, AggregatorV3Interface _priceFeed) BaseHook(_manager) {
         PRICE_FEED = _priceFeed;
+        OWNER = msg.sender;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -217,14 +227,28 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     }
 
     // ─────────────────────────────────────────────────────────────
+    //  Modifiers
+    // ─────────────────────────────────────────────────────────────
+
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
+    }
+
+    function _checkOwner() internal view {
+        if (msg.sender != OWNER) revert NotOwner();
+    }
+
+    // ─────────────────────────────────────────────────────────────
     //  Admin
     // ─────────────────────────────────────────────────────────────
 
     /// @notice Register a token for yield routing through an ERC-4626 vault.
-    /// @dev In production this should be access-controlled. Open for hackathon demo.
+    /// @dev Only the deployer (OWNER) can call this to prevent malicious vault registration.
     /// @param token The ERC-20 token address to register (e.g. USDC).
     /// @param vault The ERC-4626 vault address (e.g. MetaMorpho Gauntlet USDC Frontier).
-    function setYieldConfig(address token, address vault) external {
+    function setYieldConfig(address token, address vault) external onlyOwner {
+        if (IERC4626(vault).asset() != token) revert VaultAssetMismatch();
         yieldRegistry[token] = YieldConfig({isSupported: true, vault: IERC4626(vault)});
         emit YieldConfigSet(token, vault);
     }
@@ -242,6 +266,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     /// @param intentHash The commitment hash: `keccak256(abi.encode(targetPrice, zeroForOne, salt))`.
     /// @param orderType Whether this is a YIELD_ORDER (price-triggered) or GHOST_ORDER (time-delayed).
     /// @param minDelay Minimum delay in seconds before execution (only used for GHOST_ORDER).
+    /// @param minAmountOut Minimum acceptable output tokens from the swap (0 = no limit).
     /// @param key The Uniswap v4 PoolKey for eventual swap execution.
     /// @return orderId The unique identifier assigned to this order.
     function commitOrder(
@@ -250,6 +275,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         bytes32 intentHash,
         OrderType orderType,
         uint256 minDelay,
+        uint256 minAmountOut,
         PoolKey calldata key
     ) external returns (uint256 orderId) {
         YieldConfig memory config = yieldRegistry[tokenIn];
@@ -275,8 +301,10 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
             intentHash: intentHash,
             createdAt: block.timestamp,
             minDelay: minDelay,
+            minAmountOut: minAmountOut,
             poolKey: key
         });
+        orderVaults[orderId] = config.vault; // Snapshot vault — immune to later owner changes
 
         emit OrderCommitted(orderId, msg.sender, orderType, tokenIn, amountIn, shares, intentHash);
     }
@@ -305,6 +333,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         if (order.status != OrderStatus.ACTIVE) revert OrderNotActive();
 
         // Step 1: Verify commit-reveal integrity
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 computedHash = keccak256(abi.encode(reveal.targetPrice, reveal.zeroForOne, reveal.salt));
         if (computedHash != order.intentHash) revert HashMismatch();
 
@@ -315,8 +344,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
             if (block.timestamp < order.createdAt + order.minDelay) revert DelayNotElapsed();
         }
 
+        // Checks-effects-interactions: mark executed BEFORE external calls
+        order.status = OrderStatus.EXECUTED;
+
         // Steps 3-4: Withdraw from vault and calculate solver fee
-        (uint256 amountToSwap, uint256 solverFee, uint256 yieldEarned) = _redeemVaultPosition(order);
+        (uint256 amountToSwap, uint256 solverFee, uint256 yieldEarned) = _redeemVaultPosition(orderId, order);
 
         // Step 5: Execute swap via PoolManager.unlock() -> unlockCallback() -> swap()
         //         Set transient flag so beforeSwap knows this is a hook-initiated swap.
@@ -339,12 +371,13 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
         uint256 amountOut = uint256(int256(reveal.zeroForOne ? delta.amount1() : delta.amount0()));
 
-        // Step 6: Pay solver fee from yield
+        // Step 6: Slippage protection
+        if (order.minAmountOut > 0 && amountOut < order.minAmountOut) revert SlippageExceeded();
+
+        // Step 7: Pay solver fee from yield
         if (solverFee > 0) {
             IERC20(Currency.unwrap(order.tokenIn)).safeTransfer(msg.sender, solverFee);
         }
-
-        order.status = OrderStatus.EXECUTED;
 
         emit OrderExecuted(orderId, order.owner, msg.sender, amountOut, yieldEarned, solverFee);
     }
@@ -361,13 +394,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         if (order.status != OrderStatus.ACTIVE) revert OrderNotActive();
         if (order.owner != msg.sender) revert NotOrderOwner();
 
-        address tokenInAddr = Currency.unwrap(order.tokenIn);
-        IERC4626 vault = yieldRegistry[tokenInAddr].vault;
-        uint256 totalWithdrawn = vault.redeem(order.vaultShares, msg.sender, address(this));
-
-        uint256 yieldEarned = totalWithdrawn > order.amountIn ? totalWithdrawn - order.amountIn : 0;
-
+        // Checks-effects-interactions: mark cancelled BEFORE external calls
         order.status = OrderStatus.CANCELLED;
+
+        uint256 totalWithdrawn = orderVaults[orderId].redeem(order.vaultShares, msg.sender, address(this));
+        uint256 yieldEarned = totalWithdrawn > order.amountIn ? totalWithdrawn - order.amountIn : 0;
 
         emit OrderCancelled(orderId, msg.sender, totalWithdrawn, yieldEarned);
     }
@@ -447,12 +478,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     /// @return amountToSwap The amount available to swap after deducting the solver fee.
     /// @return solverFee The fee paid to the solver from accrued yield.
     /// @return yieldEarned The total yield earned above the original deposit.
-    function _redeemVaultPosition(GhostOrder storage order)
+    function _redeemVaultPosition(uint256 orderId, GhostOrder storage order)
         internal
         returns (uint256 amountToSwap, uint256 solverFee, uint256 yieldEarned)
     {
-        address tokenInAddr = Currency.unwrap(order.tokenIn);
-        IERC4626 vault = yieldRegistry[tokenInAddr].vault;
+        IERC4626 vault = orderVaults[orderId];
 
         uint256 sharesToRedeem = order.vaultShares;
         if (sharesToRedeem > vault.maxRedeem(address(this))) revert InsufficientVaultLiquidity();
@@ -542,9 +572,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         GhostOrder memory order = orders[orderId];
         if (order.status != OrderStatus.ACTIVE) return (0, 0);
 
-        address tokenInAddr = Currency.unwrap(order.tokenIn);
-        IERC4626 vault = yieldRegistry[tokenInAddr].vault;
-        currentValue = vault.convertToAssets(order.vaultShares);
+        currentValue = orderVaults[orderId].convertToAssets(order.vaultShares);
         yieldAccrued = currentValue > order.amountIn ? currentValue - order.amountIn : 0;
     }
 
