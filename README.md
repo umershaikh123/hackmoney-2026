@@ -1,46 +1,49 @@
-## Template Repo (Foundry)
+# GhostVault Protocol
 
-[![CI Status](../../actions/workflows/test.yaml/badge.svg)](../../actions)
+**The Yield-Bearing Execution Layer for Uniswap v4**
 
-This template repo is a quick and easy way to get started with a new Solidity project. It comes with a number of features that are useful for developing and deploying smart contracts. Such as:
+> Your capital works while your orders wait.
 
-- Pre-commit hooks for formatting, auto generated documentation, and more
-- Various libraries with useful contracts (OpenZeppelin, Solady) and libraries (Deployment log generation, storage checks, deployer templates)
+---
 
-#### Table of Contents
+## Problem
 
-- [Setup](#setup)
-- [Deployment](#deployment)
-- [Docs](#docs)
-- [Contributing](#contributing)
+Conditional orders (limit orders, time-delayed swaps) lock user funds in dormant contracts earning **0% yield**. A $10,000 limit order waiting 30 days could earn ~$42 in a lending protocol — but earns nothing in every existing order system.
 
-## Setup
+## Solution
 
-Follow these steps to set up your local environment:
+GhostVault is a **Uniswap v4 Hook** that routes idle order capital into a **MetaMorpho ERC-4626 vault** until execution conditions are met. Users get their swap output **plus** accrued yield.
 
-- [Install foundry](https://book.getfoundry.sh/getting-started/installation)
-- Install dependencies: `forge install`
-- Build contracts: `forge build`
-- Test contracts: `forge test`
+### Two Order Types
 
-If you intend to develop on this repo, follow the steps outlined in [CONTRIBUTING.md](CONTRIBUTING.md#install).
+| Order Type | Trigger | Privacy | Yield |
+|-----------|---------|---------|-------|
+| **YieldOrder** | Chainlink price target | Commit-reveal hides intent | Earned while waiting |
+| **GhostOrder** | Time delay (e.g. 30 min) | Temporal separation from pool | Earned during delay |
 
-## Deployment
+## Tech Stack
 
-This repo utilizes versioned deployments. For more information on how to use forge scripts within the repo, check [here](CONTRIBUTING.md#deployment).
+| Component | Technology |
+|-----------|-----------|
+| Smart Contracts | Solidity 0.8.26 / Foundry |
+| DEX | Uniswap v4 (PoolManager + Hooks) |
+| Yield Source | MetaMorpho ERC-4626 Vault (Base) |
+| Oracle | Chainlink Price Feeds (Base) |
+| Network | Base (L2) |
 
-Smart contracts are deployed or upgraded using the following command:
+## Getting Started
 
-```shell
-forge script script/Deploy.s.sol --broadcast --rpc-url <rpc_url> --verify
+```bash
+# Install dependencies
+forge install
+
+# Build
+forge build
+
+# Test
+forge test -vvv
 ```
 
-## Docs
+## License
 
-The documentation and architecture diagrams for the contracts within this repo can be found [here](docs/).
-Detailed documentation generated from the NatSpec documentation of the contracts can be found [here](docs/autogen/src/src/).
-When exploring the contracts within this repository, it is recommended to start with the interfaces first and then move on to the implementation as outlined [here](CONTRIBUTING.md#natspec--comments)
-
-## Contributing
-
-If you want to contribute to this project, please check [CONTRIBUTING.md](CONTRIBUTING.md) first.
+MIT
