@@ -16,15 +16,7 @@ import {TickMath} from '@uniswap/v4-core/src/libraries/TickMath.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {AggregatorV3Interface} from '@chainlink/interfaces/feeds/AggregatorV3Interface.sol';
-
-/// @notice Minimal ERC-4626 tokenized vault interface used for MetaMorpho integration.
-interface IERC4626 {
-    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
-    function redeem(uint256 shares, address receiver, address owner) external returns (uint256 assets);
-    function convertToAssets(uint256 shares) external view returns (uint256);
-    function maxRedeem(address owner) external view returns (uint256);
-    function asset() external view returns (address);
-}
+import {IERC4626} from '@openzeppelin/contracts/interfaces/IERC4626.sol';
 
 /// @title GhostVault Hook
 /// @author GhostVault Protocol (ETH Global Hack Money 2026)
@@ -53,8 +45,8 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
 
     /// @notice Determines how order execution conditions are evaluated.
     enum OrderType {
-        YIELD_ORDER, // Price-triggered (limit order with yield)
-        GHOST_ORDER // Time-delayed (privacy swap with yield)
+        YIELD_ORDER,
+        GHOST_ORDER
     }
 
     /// @notice Lifecycle status of an order.
@@ -72,19 +64,19 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         Currency tokenIn;
         Currency tokenOut;
         uint256 amountIn;
-        uint256 vaultShares; // ERC-4626 shares received on deposit
-        bytes32 intentHash; // keccak256(abi.encode(targetPrice, zeroForOne, salt))
+        uint256 vaultShares;
+        bytes32 intentHash;
         uint256 createdAt;
-        uint256 minDelay; // GhostOrder only: minimum seconds before execution
-        uint256 minAmountOut; // Minimum output tokens user accepts (0 = no limit)
+        uint256 minDelay;
+        uint256 minAmountOut;
         PoolKey poolKey;
     }
 
     /// @notice Data revealed at execution time to verify the commit-reveal scheme.
     struct RevealData {
-        uint256 targetPrice; // Target price in oracle decimals (8 for Chainlink)
-        bool zeroForOne; // Swap direction: true = sell token0, false = sell token1
-        bytes32 salt; // Random salt that was used in the commitment hash
+        uint256 targetPrice;
+        bool zeroForOne;
+        bytes32 salt;
     }
 
     /// @notice Configuration mapping a token to its ERC-4626 yield vault.
@@ -128,10 +120,10 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
     address public immutable OWNER;
 
     /// @notice Percentage of accrued yield paid to the solver/agent (basis points).
-    uint256 public constant SOLVER_FEE_BPS = 100; // 1%
+    uint256 public constant SOLVER_FEE_BPS = 100;
 
     /// @notice Maximum acceptable age for a Chainlink price update (seconds).
-    uint256 public constant MAX_ORACLE_STALENESS = 3600; // 1 hour
+    uint256 public constant MAX_ORACLE_STALENESS = 3600;
 
     // ─────────────────────────────────────────────────────────────
     //  Transient Storage
@@ -281,14 +273,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         YieldConfig memory config = yieldRegistry[tokenIn];
         if (!config.isSupported) revert TokenNotSupported();
 
-        // Pull tokens from the user
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
 
-        // Deposit into the ERC-4626 vault and record the shares received
         IERC20(tokenIn).forceApprove(address(config.vault), amountIn);
         uint256 shares = config.vault.deposit(amountIn, address(this));
 
-        // Persist order state
         orderId = nextOrderId++;
         orders[orderId] = GhostOrder({
             owner: msg.sender,
@@ -304,7 +293,7 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
             minAmountOut: minAmountOut,
             poolKey: key
         });
-        orderVaults[orderId] = config.vault; // Snapshot vault — immune to later owner changes
+        orderVaults[orderId] = config.vault;
 
         emit OrderCommitted(orderId, msg.sender, orderType, tokenIn, amountIn, shares, intentHash);
     }
@@ -332,26 +321,20 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         GhostOrder storage order = orders[orderId];
         if (order.status != OrderStatus.ACTIVE) revert OrderNotActive();
 
-        // Step 1: Verify commit-reveal integrity
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 computedHash = keccak256(abi.encode(reveal.targetPrice, reveal.zeroForOne, reveal.salt));
         if (computedHash != order.intentHash) revert HashMismatch();
 
-        // Step 2: Validate order-type-specific conditions
         if (order.orderType == OrderType.YIELD_ORDER) {
             _verifyPriceCondition(reveal.targetPrice, reveal.zeroForOne);
         } else {
             if (block.timestamp < order.createdAt + order.minDelay) revert DelayNotElapsed();
         }
 
-        // Checks-effects-interactions: mark executed BEFORE external calls
         order.status = OrderStatus.EXECUTED;
 
-        // Steps 3-4: Withdraw from vault and calculate solver fee
         (uint256 amountToSwap, uint256 solverFee, uint256 yieldEarned) = _redeemVaultPosition(orderId, order);
 
-        // Step 5: Execute swap via PoolManager.unlock() -> unlockCallback() -> swap()
-        //         Set transient flag so beforeSwap knows this is a hook-initiated swap.
         _setExecutingSwap(true);
 
         bytes memory result = poolManager.unlock(
@@ -367,14 +350,11 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
 
         _setExecutingSwap(false);
 
-        // Decode swap result and pay solver fee
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
         uint256 amountOut = uint256(int256(reveal.zeroForOne ? delta.amount1() : delta.amount0()));
 
-        // Step 6: Slippage protection
         if (order.minAmountOut > 0 && amountOut < order.minAmountOut) revert SlippageExceeded();
 
-        // Step 7: Pay solver fee from yield
         if (solverFee > 0) {
             IERC20(Currency.unwrap(order.tokenIn)).safeTransfer(msg.sender, solverFee);
         }
@@ -394,7 +374,6 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         if (order.status != OrderStatus.ACTIVE) revert OrderNotActive();
         if (order.owner != msg.sender) revert NotOrderOwner();
 
-        // Checks-effects-interactions: mark cancelled BEFORE external calls
         order.status = OrderStatus.CANCELLED;
 
         uint256 totalWithdrawn = orderVaults[orderId].redeem(order.vaultShares, msg.sender, address(this));
@@ -438,7 +417,6 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
 
         SwapCallbackData memory cbData = abi.decode(data, (SwapCallbackData));
 
-        // Execute the swap as exact-input (negative amountSpecified)
         BalanceDelta delta = poolManager.swap(
             cbData.key,
             SwapParams({
@@ -449,7 +427,6 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
             ''
         );
 
-        // Settle input token: we owe the pool, so sync → transfer → settle
         Currency inputCurrency = cbData.zeroForOne ? cbData.key.currency0 : cbData.key.currency1;
         address inputToken = Currency.unwrap(inputCurrency);
 
@@ -457,10 +434,8 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
         IERC20(inputToken).safeTransfer(address(poolManager), cbData.amountIn);
         poolManager.settle();
 
-        // Take output token: pool owes us, send directly to the order owner
         Currency outputCurrency = cbData.zeroForOne ? cbData.key.currency1 : cbData.key.currency0;
         int128 outputDelta = cbData.zeroForOne ? delta.amount1() : delta.amount0();
-        // casting to uint256 is safe because outputDelta is positive (pool owes us tokens)
         // forge-lint: disable-next-line(unsafe-typecast)
         uint256 outputAmount = uint256(int256(outputDelta));
         poolManager.take(outputCurrency, cbData.recipient, outputAmount);
@@ -512,7 +487,6 @@ contract GhostVaultHook is BaseHook, IUnlockCallback {
             revert OracleStale(updatedAt, block.timestamp);
         }
 
-        // casting to uint256 is safe because Chainlink price feeds return positive values
         // forge-lint: disable-next-line(unsafe-typecast)
         uint256 currentPrice = uint256(answer);
 

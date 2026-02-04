@@ -49,7 +49,7 @@ build:
 
 ## Run 8 mock unit tests (no RPC needed)
 test-mock:
-	forge test --match-path test/GhostVaultHook.t.sol -vvv
+	forge test --match-path test/GhostVaultHook.t.sol -vv 
 
 ## Run 6 fork tests against real Base mainnet
 test-fork:
@@ -57,7 +57,7 @@ test-fork:
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --match-path test/GhostVaultFork.t.sol --fork-url $(BASE_MAINNET_RPC) -vvv
+	forge test --match-path test/GhostVaultFork.t.sol --fork-url $(BASE_MAINNET_RPC) -vv 
 
 ## Run 3 standalone Morpho yield tests
 test-morpho:
@@ -65,7 +65,7 @@ test-morpho:
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --match-path test/MorphoYield.t.sol --fork-url $(BASE_MAINNET_RPC) -vvv
+	forge test --match-path test/MorphoYield.t.sol --fork-url $(BASE_MAINNET_RPC) -vv 
 
 ## Run all tests (mock + fork + morpho)
 test-all:
@@ -73,7 +73,7 @@ test-all:
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --fork-url $(BASE_MAINNET_RPC) -vvv
+	forge test --fork-url $(BASE_MAINNET_RPC) -vv 
 
 # ─────────────────────────────────────────────────────────────
 #  Tests — Run and save logs

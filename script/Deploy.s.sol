@@ -8,6 +8,14 @@ import {HookMiner} from '@uniswap/v4-periphery/src/utils/HookMiner.sol';
 import {AggregatorV3Interface} from '@chainlink/interfaces/feeds/AggregatorV3Interface.sol';
 
 import {GhostVaultHook} from '../src/GhostVaultHook.sol';
+import {
+    POOLMANAGER_BASE_MAINNET,
+    ETH_USD_FEED_BASE_MAINNET,
+    USDC_BASE_MAINNET,
+    METAMORPHO_VAULT_BASE_MAINNET,
+    POOLMANAGER_BASE_SEPOLIA,
+    ETH_USD_FEED_BASE_SEPOLIA
+} from '../constants/Addresses.sol';
 
 /// @title GhostVault Hook Deployment Script
 /// @author GhostVault Protocol
@@ -28,35 +36,21 @@ import {GhostVaultHook} from '../src/GhostVaultHook.sol';
 ///        BASE_MAINNET_RPC      - Base mainnet RPC URL (optional, for mainnet deploy)
 ///        BASE_SEPOLIA_RPC      - Base Sepolia RPC URL (optional, for testnet deploy)
 contract DeployGhostVault is Script {
-    /// @dev Standard CREATE2 deployer proxy address (same on all EVM chains).
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    // ─────────────────────────────────────────────────────────────
-    //  Base Mainnet Addresses
-    // ─────────────────────────────────────────────────────────────
+    IPoolManager constant POOL_MANAGER_MAINNET = IPoolManager(POOLMANAGER_BASE_MAINNET);
+    AggregatorV3Interface constant PRICE_FEED_MAINNET = AggregatorV3Interface(ETH_USD_FEED_BASE_MAINNET);
 
-    IPoolManager constant POOL_MANAGER_MAINNET = IPoolManager(0x498581fF718922c3f8e6A244956aF099B2652b2b);
-    AggregatorV3Interface constant ETH_USD_FEED_MAINNET =
-        AggregatorV3Interface(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70);
-    address constant USDC_MAINNET = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant METAMORPHO_VAULT_MAINNET = 0x236919F11ff9eA9550A4287696C2FC9e18E6e890;
-
-    // ─────────────────────────────────────────────────────────────
-    //  Base Sepolia Addresses
-    // ─────────────────────────────────────────────────────────────
-
-    IPoolManager constant POOL_MANAGER_SEPOLIA = IPoolManager(0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408);
-    AggregatorV3Interface constant ETH_USD_FEED_SEPOLIA =
-        AggregatorV3Interface(0x4Adc67d868eC7B3D15c20179412230BAB5325963);
+    IPoolManager constant POOL_MANAGER_SEPOLIA = IPoolManager(POOLMANAGER_BASE_SEPOLIA);
+    AggregatorV3Interface constant PRICE_FEED_SEPOLIA = AggregatorV3Interface(ETH_USD_FEED_BASE_SEPOLIA);
 
     function run() public {
         uint256 deployerKey = vm.envUint('DEPLOYER_PRIVATE_KEY');
 
-        // Detect network by checking which PoolManager is deployed
         bool isSepolia = _isContract(address(POOL_MANAGER_SEPOLIA)) && !_isContract(address(POOL_MANAGER_MAINNET));
 
         IPoolManager poolManager = isSepolia ? POOL_MANAGER_SEPOLIA : POOL_MANAGER_MAINNET;
-        AggregatorV3Interface priceFeed = isSepolia ? ETH_USD_FEED_SEPOLIA : ETH_USD_FEED_MAINNET;
+        AggregatorV3Interface priceFeed = isSepolia ? PRICE_FEED_SEPOLIA : PRICE_FEED_MAINNET;
 
         console2.log('');
         console2.log('========================================');
@@ -66,10 +60,8 @@ contract DeployGhostVault is Script {
         console2.log('  PoolManager:  ', address(poolManager));
         console2.log('  Price Feed:   ', address(priceFeed));
 
-        // The hook requires the BEFORE_SWAP_FLAG bit set in its address
         uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG);
 
-        // Mine a CREATE2 salt that produces an address with the correct flag bits
         bytes memory constructorArgs = abi.encode(address(poolManager), address(priceFeed));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(CREATE2_DEPLOYER, flags, type(GhostVaultHook).creationCode, constructorArgs);
@@ -77,16 +69,14 @@ contract DeployGhostVault is Script {
         console2.log('  Mined address:', hookAddress);
         console2.log('');
 
-        // Deploy
         vm.startBroadcast(deployerKey);
 
         GhostVaultHook hook = new GhostVaultHook{salt: salt}(poolManager, priceFeed);
         require(address(hook) == hookAddress, 'Deploy: hook address mismatch');
 
-        // Register yield vault on mainnet (MetaMorpho Gauntlet USDC Frontier)
         if (!isSepolia) {
-            hook.setYieldConfig(USDC_MAINNET, METAMORPHO_VAULT_MAINNET);
-            console2.log('  Yield Config: USDC -> MetaMorpho Gauntlet USDC Frontier');
+            hook.setYieldConfig(USDC_BASE_MAINNET, METAMORPHO_VAULT_BASE_MAINNET);
+            console2.log('  Yield Config: USDC -> MetaMorpho Gauntlet USDC Prime');
         }
 
         vm.stopBroadcast();
@@ -97,7 +87,6 @@ contract DeployGhostVault is Script {
         console2.log('');
     }
 
-    /// @dev Check if an address has deployed code (used for network detection).
     function _isContract(address addr) internal view returns (bool) {
         uint256 size;
         assembly {
