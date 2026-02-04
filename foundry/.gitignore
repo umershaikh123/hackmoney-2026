@@ -14,3 +14,7 @@ deployments/**/31337.*
 
 .env.local
 test-logs/
+
+lib
+logs
+docs

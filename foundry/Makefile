@@ -3,10 +3,12 @@
 # ─────────────────────────────────────────────────────────────
 #
 #  Usage:
-#    make test-mock          Run 8 mock tests (no RPC needed)
-#    make test-fork          Run 6 fork tests (Base mainnet)
+#    make test-mock          Run 8 V1 mock tests (no RPC needed)
+#    make test-fork          Run 6 V1 fork tests (Base mainnet)
 #    make test-morpho        Run 3 standalone Morpho yield tests
-#    make test-all           Run all 17 tests
+#    make test-all           Run all tests
+#    make test-v2-mock       Run 14 V2 mock tests (no RPC needed)
+#    make test-v2-fork       Run 7 V2 fork tests (Base mainnet)
 #    make build              Compile contracts
 #    make logs               Run all tests and save logs to test-logs/
 #    make clean-logs         Delete saved logs
@@ -45,19 +47,19 @@ build:
 #  Tests — Run in terminal
 # ─────────────────────────────────────────────────────────────
 
-.PHONY: test-mock test-fork test-morpho test-all
+.PHONY: test-mock test-fork test-morpho test-v2-mock test-v2-fork test-all
 
-## Run 8 mock unit tests (no RPC needed)
+## Run 8 V1 mock unit tests (no RPC needed)
 test-mock:
-	forge test --match-path test/GhostVaultHook.t.sol -vv 
+	forge test --match-path test/GhostVaultHook.t.sol -vv
 
-## Run 6 fork tests against real Base mainnet
+## Run 6 V1 fork tests against real Base mainnet
 test-fork:
 	@if [ -z "$(BASE_MAINNET_RPC)" ]; then \
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --match-path test/GhostVaultFork.t.sol --fork-url $(BASE_MAINNET_RPC) -vv 
+	forge test --match-path test/GhostVaultFork.t.sol --fork-url $(BASE_MAINNET_RPC) -vv
 
 ## Run 3 standalone Morpho yield tests
 test-morpho:
@@ -65,15 +67,27 @@ test-morpho:
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --match-path test/MorphoYield.t.sol --fork-url $(BASE_MAINNET_RPC) -vv 
+	forge test --match-path test/MorphoYield.t.sol --fork-url $(BASE_MAINNET_RPC) -vv
 
-## Run all tests (mock + fork + morpho)
+## Run 14 V2 mock unit tests (no RPC needed)
+test-v2-mock:
+	forge test --match-path test/GhostVaultHookV2.t.sol -vv
+
+## Run 7 V2 fork tests against real Base mainnet
+test-v2-fork:
+	@if [ -z "$(BASE_MAINNET_RPC)" ]; then \
+		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
+		exit 1; \
+	fi
+	forge test --match-path test/GhostVaultForkV2.t.sol --fork-url $(BASE_MAINNET_RPC) -vv
+
+## Run all tests (v1 + v2 + morpho)
 test-all:
 	@if [ -z "$(BASE_MAINNET_RPC)" ]; then \
 		echo "ERROR: BASE_MAINNET_RPC not set. Add it to .env.local or export it."; \
 		exit 1; \
 	fi
-	forge test --fork-url $(BASE_MAINNET_RPC) -vv 
+	forge test --fork-url $(BASE_MAINNET_RPC) -vv
 
 # ─────────────────────────────────────────────────────────────
 #  Tests — Run and save logs
@@ -153,10 +167,12 @@ help:
 	@echo "──────────────────────────────────────────"
 	@echo "  make build        Compile contracts"
 	@echo ""
-	@echo "  make test-mock    Run 8 mock tests (no RPC)"
-	@echo "  make test-fork    Run 6 fork tests (needs RPC)"
+	@echo "  make test-mock    Run 8 V1 mock tests (no RPC)"
+	@echo "  make test-fork    Run 6 V1 fork tests (needs RPC)"
 	@echo "  make test-morpho  Run 3 Morpho yield tests (needs RPC)"
-	@echo "  make test-all     Run all 17 tests"
+	@echo "  make test-v2-mock Run 14 V2 mock tests (no RPC)"
+	@echo "  make test-v2-fork Run 7 V2 fork tests (needs RPC)"
+	@echo "  make test-all     Run all tests"
 	@echo ""
 	@echo "  make log-mock     Run mock tests + save log"
 	@echo "  make log-fork     Run fork tests + save log"
