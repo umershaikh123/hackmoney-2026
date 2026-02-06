@@ -100,7 +100,7 @@ USDC := 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 WETH := 0x4200000000000000000000000000000000000006
 ANVIL_RPC := http://127.0.0.1:8545
 
-.PHONY: demo-anvil demo-setup
+.PHONY: demo-anvil demo-setup demo
 
 demo-anvil:
 	@test -n "$(BASE_MAINNET_RPC)" || (echo "ERROR: BASE_MAINNET_RPC not set"; exit 1)
@@ -120,8 +120,13 @@ demo-setup:
 	@echo "  USDC: $$(cast call $(USDC) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
 	@echo "  WETH: $$(cast call $(WETH) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
 	@echo ""
-	@echo "Copy the hook address from above, then:"
-	@echo "  cd ../frontend && echo 'NEXT_PUBLIC_GHOST_VAULT_ADDRESS=<HOOK>' > .env.local && npm run dev"
+	@echo "Run 'make demo' to execute the automated demo"
+
+demo:
+	@echo ""
+	@echo "Running GhostVault Automated Demo..."
+	@echo ""
+	forge test --match-path script/DemoV2.t.sol --fork-url $(ANVIL_RPC) -vv
 
 # ─────────────────────────────────────────────────────────────
 # Cleanup
@@ -139,9 +144,10 @@ clean-logs:
 help:
 	@echo "GhostVault Makefile"
 	@echo ""
-	@echo "Demo:"
+	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: demo-setup + demo):"
 	@echo "  make demo-anvil   Start Anvil fork"
 	@echo "  make demo-setup   Deploy hook + fund account"
+	@echo "  make demo         Run automated demo (YieldOrder, GhostOrder, Cancel)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build        Compile contracts"
