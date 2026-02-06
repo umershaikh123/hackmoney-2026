@@ -480,7 +480,7 @@ contract GhostVaultHookV2 is BaseHook, IUnlockCallback, ReentrancyGuardTransient
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (_isExecutingSwap()) {
-            _verifyOracleDeviation();
+            _verifyOracleFreshness();
         }
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -583,7 +583,7 @@ contract GhostVaultHookV2 is BaseHook, IUnlockCallback, ReentrancyGuardTransient
         }
     }
 
-    function _verifyOracleDeviation() internal view {
+    function _verifyOracleFreshness() internal view {
         (,,, uint256 updatedAt,) = PRICE_FEED.latestRoundData();
 
         if (block.timestamp - updatedAt > MAX_ORACLE_STALENESS) {

@@ -60,7 +60,7 @@ contract GhostVaultHookV2Test is Test {
         uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG);
         address hookAddr = address(flags);
 
-        deployCodeTo('GhostVaultHookV2.sol:GhostVaultHookV2', abi.encode(address(poolManager), ORACLE), hookAddr);
+        deployCodeTo('GhostVaultHookV2.sol:GhostVaultHookV2', abi.encode(address(poolManager), ORACLE, address(this)), hookAddr);
         hook = GhostVaultHookV2(hookAddr);
 
         vault = new TestVault(usdc);
