@@ -17,30 +17,15 @@ import {
     ETH_USD_FEED_BASE_SEPOLIA
 } from '../constants/Addresses.sol';
 
-/// @title GhostVault Hook Deployment Script
-/// @author GhostVault Protocol
-/// @notice Deploys GhostVaultHook to Base Sepolia or Base Mainnet using CREATE2 salt mining.
-///
-/// @dev Hook addresses must encode permission flags in their lowest address bits.
-///      This script uses HookMiner to find a CREATE2 salt that produces an address
-///      with the `BEFORE_SWAP_FLAG` bit set.
-///
-///      Usage:
-///        Base Sepolia:
-///          forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC --broadcast --verify
-///        Base Mainnet:
-///          forge script script/Deploy.s.sol --rpc-url $BASE_MAINNET_RPC --broadcast --verify
-///
-///      Required environment variables (set in .env.local):
-///        DEPLOYER_PRIVATE_KEY  - Private key of the deploying account
-///        BASE_MAINNET_RPC      - Base mainnet RPC URL (optional, for mainnet deploy)
-///        BASE_SEPOLIA_RPC      - Base Sepolia RPC URL (optional, for testnet deploy)
+/// @title GhostVault Hook V1 Deployment
+/// @notice Deploys GhostVaultHook (V1) via CREATE2 with HookMiner salt.
+/// @dev Hook address encodes BEFORE_SWAP_FLAG (0x80).
+///      Usage: DEPLOYER_PRIVATE_KEY=0x... forge script script/Deploy.s.sol --rpc-url $RPC --broadcast
 contract DeployGhostVault is Script {
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     IPoolManager constant POOL_MANAGER_MAINNET = IPoolManager(POOLMANAGER_BASE_MAINNET);
     AggregatorV3Interface constant PRICE_FEED_MAINNET = AggregatorV3Interface(ETH_USD_FEED_BASE_MAINNET);
-
     IPoolManager constant POOL_MANAGER_SEPOLIA = IPoolManager(POOLMANAGER_BASE_SEPOLIA);
     AggregatorV3Interface constant PRICE_FEED_SEPOLIA = AggregatorV3Interface(ETH_USD_FEED_BASE_SEPOLIA);
 
@@ -48,50 +33,37 @@ contract DeployGhostVault is Script {
         uint256 deployerKey = vm.envUint('DEPLOYER_PRIVATE_KEY');
 
         bool isSepolia = _isContract(address(POOL_MANAGER_SEPOLIA)) && !_isContract(address(POOL_MANAGER_MAINNET));
-
         IPoolManager poolManager = isSepolia ? POOL_MANAGER_SEPOLIA : POOL_MANAGER_MAINNET;
         AggregatorV3Interface priceFeed = isSepolia ? PRICE_FEED_SEPOLIA : PRICE_FEED_MAINNET;
 
-        console2.log('');
-        console2.log('========================================');
-        console2.log('  GhostVault Hook Deployment');
-        console2.log('========================================');
-        console2.log('  Network:      ', isSepolia ? 'Base Sepolia' : 'Base Mainnet');
-        console2.log('  PoolManager:  ', address(poolManager));
-        console2.log('  Price Feed:   ', address(priceFeed));
+        console2.log('GhostVault V1 Deploy');
+        console2.log('Network:', isSepolia ? 'Base Sepolia' : 'Base Mainnet');
 
         uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG);
-
         bytes memory constructorArgs = abi.encode(address(poolManager), address(priceFeed));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(CREATE2_DEPLOYER, flags, type(GhostVaultHook).creationCode, constructorArgs);
 
-        console2.log('  Mined address:', hookAddress);
-        console2.log('');
+        console2.log('Mined hook address:', hookAddress);
 
         vm.startBroadcast(deployerKey);
 
         GhostVaultHook hook = new GhostVaultHook{salt: salt}(poolManager, priceFeed);
-        require(address(hook) == hookAddress, 'Deploy: hook address mismatch');
+        require(address(hook) == hookAddress, 'hook address mismatch');
 
         if (!isSepolia) {
             hook.setYieldConfig(USDC_BASE_MAINNET, METAMORPHO_VAULT_BASE_MAINNET);
-            console2.log('  Yield Config: USDC -> MetaMorpho Gauntlet USDC Prime');
+            console2.log('Yield config: USDC -> MetaMorpho');
         }
 
         vm.stopBroadcast();
 
-        console2.log('');
-        console2.log('  Hook deployed at:', address(hook));
-        console2.log('========================================');
-        console2.log('');
+        console2.log('Hook deployed at:', address(hook));
     }
 
     function _isContract(address addr) internal view returns (bool) {
         uint256 size;
-        assembly {
-            size := extcodesize(addr)
-        }
+        assembly { size := extcodesize(addr) }
         return size > 0;
     }
 }

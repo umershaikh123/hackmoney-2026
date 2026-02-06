@@ -187,9 +187,9 @@ contract GhostVaultHookV2 is BaseHook, IUnlockCallback, ReentrancyGuardTransient
     //  Constructor
     // ─────────────────────────────────────────────────────────────
 
-    constructor(IPoolManager _manager, AggregatorV3Interface _priceFeed) BaseHook(_manager) {
+    constructor(IPoolManager _manager, AggregatorV3Interface _priceFeed, address _owner) BaseHook(_manager) {
         PRICE_FEED = _priceFeed;
-        OWNER = msg.sender;
+        OWNER = _owner;
     }
 
     // ─────────────────────────────────────────────────────────────

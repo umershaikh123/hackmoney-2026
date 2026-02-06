@@ -22,19 +22,12 @@ import {
 } from '../constants/Addresses.sol';
 
 /// @title GhostVault Fork Tests
-/// @notice Integration tests against real Base mainnet state (MetaMorpho, Chainlink, Uniswap v4).
-/// @dev Run with: source .env.local && forge test --match-path test/GhostVaultFork.t.sol --fork-url $BASE_MAINNET_RPC -vvv
-///
-///      Token ordering on Base mainnet:
-///        WETH (0x4200...) < USDC (0x8335...) -> currency0 = WETH, currency1 = USDC
-///        This is the OPPOSITE of the mock tests where USDC < WETH.
-///        For depositing USDC and wanting WETH: zeroForOne = false (sell currency1 for currency0).
+/// @dev Run with: forge test --match-path test/GhostVaultFork.t.sol --fork-url $BASE_MAINNET_RPC -vvv
 contract GhostVaultForkTest is Test {
     IPoolManager constant POOL_MGR = IPoolManager(POOLMANAGER_BASE_MAINNET);
 
     GhostVaultHook public hook;
     LiquidityHelper public liquidityHelper;
-
     PoolKey public poolKey;
 
     address public user = makeAddr('forkUser');
@@ -50,7 +43,6 @@ contract GhostVaultForkTest is Test {
             'GhostVaultHook.sol:GhostVaultHook', abi.encode(POOLMANAGER_BASE_MAINNET, ETH_USD_FEED_BASE_MAINNET), hookAddr
         );
         hook = GhostVaultHook(hookAddr);
-
         hook.setYieldConfig(USDC_BASE_MAINNET, METAMORPHO_VAULT_BASE_MAINNET);
 
         poolKey = PoolKey({
@@ -60,7 +52,6 @@ contract GhostVaultForkTest is Test {
             tickSpacing: 60,
             hooks: IHooks(hookAddr)
         });
-
         POOL_MGR.initialize(poolKey, INIT_SQRT_PRICE);
 
         liquidityHelper = new LiquidityHelper(POOL_MGR);
@@ -101,16 +92,7 @@ contract GhostVaultForkTest is Test {
         );
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 1: Real MetaMorpho Deposit
-    // ─────────────────────────────────────────────────────────────
-
     function test_RealMetaMorphoDeposit() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 1: Real MetaMorpho Deposit + Yield');
-        console2.log('====================================================');
-
         IERC4626 vault = IERC4626(METAMORPHO_VAULT_BASE_MAINNET);
         uint256 depositAmount = 10_000e6;
 
@@ -118,76 +100,32 @@ contract GhostVaultForkTest is Test {
         IERC20(USDC_BASE_MAINNET).approve(METAMORPHO_VAULT_BASE_MAINNET, depositAmount);
         uint256 shares = vault.deposit(depositAmount, address(this));
 
-        console2.log('  Deposited:       %s USDC', depositAmount / 1e6);
-        console2.log('  Shares received: %s', shares);
-        assertGt(shares, 0, 'Should receive vault shares');
+        console2.log("Deposited %s USDC, got %s shares", depositAmount / 1e6, shares);
+        assertGt(shares, 0);
 
         uint256 valueBefore = vault.convertToAssets(shares);
-        console2.log('  Value (t=0):     %s USDC', valueBefore / 1e6);
-
         vm.warp(block.timestamp + 7 days);
-
         uint256 valueAfter = vault.convertToAssets(shares);
         uint256 yieldEarned = valueAfter > depositAmount ? valueAfter - depositAmount : 0;
 
-        console2.log('  Value (t=7d):    %s USDC', valueAfter / 1e6);
-        console2.log('  Yield earned:    %s (raw)', yieldEarned);
-
-        if (yieldEarned > 0) {
-            uint256 apyBps = (yieldEarned * 365 * 10_000) / (depositAmount * 7);
-            console2.log('  Implied APY:     %s.%s%%', apyBps / 100, apyBps % 100);
-        }
-
-        assertApproxEqAbs(valueAfter, depositAmount, 1, 'Value should not decrease (1 wei ERC-4626 rounding)');
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("After 7 days: value=%s, yield=%s", valueAfter / 1e6, yieldEarned);
+        assertApproxEqAbs(valueAfter, depositAmount, 1);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 2: Real Chainlink Feed
-    // ─────────────────────────────────────────────────────────────
-
     function test_RealChainlinkFeed() public view {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 2: Real Chainlink ETH/USD Feed');
-        console2.log('====================================================');
-
         AggregatorV3Interface feed = AggregatorV3Interface(ETH_USD_FEED_BASE_MAINNET);
         (, int256 price,, uint256 updatedAt,) = feed.latestRoundData();
         uint8 dec = feed.decimals();
 
-        // forge-lint: disable-next-line(unsafe-typecast)
-        console2.log('  ETH/USD Price: $%s', uint256(price) / (10 ** dec));
-        console2.log('  Decimals:      %s', dec);
-        console2.log('  Updated at:    %s', updatedAt);
-        console2.log('  Block time:    %s', block.timestamp);
-
-        assertEq(dec, 8, 'Chainlink ETH/USD should have 8 decimals');
-        assertGt(price, 0, 'Price should be positive');
-        // forge-lint: disable-next-line(unsafe-typecast)
-        assertGt(uint256(price), 1000e8, 'ETH should be > $1,000');
-        // forge-lint: disable-next-line(unsafe-typecast)
-        assertLt(uint256(price), 10_000e8, 'ETH should be < $10,000');
-        assertGt(updatedAt, 0, 'Updated timestamp should be set');
-        assertLe(updatedAt, block.timestamp, 'Updated should be <= block time');
-
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("ETH/USD: $%s (decimals=%s)", uint256(price) / (10 ** dec), dec);
+        assertEq(dec, 8);
+        assertGt(price, 0);
+        assertGt(uint256(price), 1000e8);
+        assertLt(uint256(price), 10_000e8);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 3: Fork YieldOrder Lifecycle
-    // ─────────────────────────────────────────────────────────────
-
     function test_ForkYieldOrderLifecycle() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 3: YieldOrder Full Lifecycle (Real Base)');
-        console2.log('====================================================');
-
         (, int256 ethPrice,,,) = AggregatorV3Interface(ETH_USD_FEED_BASE_MAINNET).latestRoundData();
-        // forge-lint: disable-next-line(unsafe-typecast)
         uint256 currentEthPrice = uint256(ethPrice);
 
         uint256 depositAmount = 10_000e6;
@@ -203,60 +141,31 @@ contract GhostVaultForkTest is Test {
         );
         vm.stopPrank();
 
-        console2.log('  Committed:      %s USDC', depositAmount / 1e6);
-        console2.log('  Real ETH price: $%s', currentEthPrice / 1e8);
-        console2.log('  Target price:   $%s', targetPrice / 1e8);
-
-        (uint256 valueBefore,) = hook.getOrderValue(orderId);
-        console2.log('  Vault value:    %s USDC', valueBefore / 1e6);
+        console2.log("Committed %s USDC, ETH=$%s, target=$%s", depositAmount / 1e6, currentEthPrice / 1e8, targetPrice / 1e8);
 
         vm.warp(block.timestamp + 30 days);
-
         (uint256 valueAfter, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log('');
-        console2.log('  After 30 days:');
-        console2.log('  Vault value:    %s USDC', valueAfter / 1e6);
-        console2.log('  Yield accrued:  %s (raw)', yieldAccrued);
+        console2.log("After 30 days: value=%s, yield=%s", valueAfter / 1e6, yieldAccrued);
 
-        // forge-lint: disable-next-line(unsafe-typecast)
         _mockChainlinkPrice(int256(currentEthPrice));
         _mockVaultMaxRedeem();
 
         uint256 userWethBefore = IERC20(WETH_BASE_MAINNET).balanceOf(user);
-
-        GhostVaultHook.RevealData memory reveal =
-            GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
+        GhostVaultHook.RevealData memory reveal = GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
 
         vm.prank(solver);
         hook.executeOrder(orderId, reveal);
 
         uint256 wethReceived = IERC20(WETH_BASE_MAINNET).balanceOf(user) - userWethBefore;
         uint256 solverFee = IERC20(USDC_BASE_MAINNET).balanceOf(solver);
+        console2.log("Executed: WETH=%s, solverFee=%s", wethReceived, solverFee);
 
-        console2.log('');
-        console2.log('  Execution Results:');
-        console2.log('  WETH received:  %s (wei)', wethReceived);
-        console2.log('  Solver fee:     %s USDC (raw)', solverFee);
-
-        assertGt(wethReceived, 0, 'User should have received WETH');
-
+        assertGt(wethReceived, 0);
         (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.EXECUTED));
-
-        console2.log('====================================================');
-        console2.log('');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 4: Fork GhostOrder Execution
-    // ─────────────────────────────────────────────────────────────
-
     function test_ForkGhostOrderExecution() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 4: GhostOrder Time-Delayed (Real Base)');
-        console2.log('====================================================');
-
         uint256 depositAmount = 50_000e6;
         uint256 minDelay = 1800;
         bool zeroForOne = false;
@@ -271,49 +180,29 @@ contract GhostVaultForkTest is Test {
         );
         vm.stopPrank();
 
-        console2.log('  Committed:     %s USDC (hidden from pool)', depositAmount / 1e6);
-        console2.log('  Min delay:     %s seconds', minDelay);
+        console2.log("Committed %s USDC with %ss delay", depositAmount / 1e6, minDelay);
 
-        GhostVaultHook.RevealData memory reveal =
-            GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
+        GhostVaultHook.RevealData memory reveal = GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
 
         vm.prank(solver);
         vm.expectRevert(GhostVaultHook.DelayNotElapsed.selector);
         hook.executeOrder(orderId, reveal);
-        console2.log('  Early execution blocked (DelayNotElapsed)');
+        console2.log("Early execution blocked");
 
         vm.warp(block.timestamp + minDelay + 1);
         _mockChainlinkFresh();
         _mockVaultMaxRedeem();
 
         uint256 userWethBefore = IERC20(WETH_BASE_MAINNET).balanceOf(user);
-
         vm.prank(solver);
         hook.executeOrder(orderId, reveal);
 
         uint256 wethReceived = IERC20(WETH_BASE_MAINNET).balanceOf(user) - userWethBefore;
-
-        console2.log('');
-        console2.log('  After delay elapsed:');
-        console2.log('  WETH received:  %s (wei)', wethReceived);
-        console2.log('  MEV exposure:   NONE (funds were in Morpho)');
-
-        assertGt(wethReceived, 0, 'User should have received WETH');
-
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("Executed after delay: WETH=%s", wethReceived);
+        assertGt(wethReceived, 0);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 5: Fork Cancel with Real Yield
-    // ─────────────────────────────────────────────────────────────
-
     function test_ForkCancelWithRealYield() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 5: Cancel with Real MetaMorpho Yield');
-        console2.log('====================================================');
-
         uint256 depositAmount = 10_000e6;
         bytes32 intentHash = keccak256(abi.encode(uint256(5000e8), false, keccak256('forkCancel')));
 
@@ -325,51 +214,28 @@ contract GhostVaultForkTest is Test {
         vm.stopPrank();
 
         uint256 userBalanceBefore = IERC20(USDC_BASE_MAINNET).balanceOf(user);
-        console2.log('  Deposited:     %s USDC', depositAmount / 1e6);
+        console2.log("Deposited %s USDC", depositAmount / 1e6);
 
         vm.warp(block.timestamp + 14 days);
-
         (uint256 currentValue, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log('');
-        console2.log('  After 14 days:');
-        console2.log('  Vault value:   %s USDC', currentValue / 1e6);
-        console2.log('  Yield accrued: %s (raw)', yieldAccrued);
+        console2.log("After 14 days: value=%s, yield=%s", currentValue / 1e6, yieldAccrued);
 
         vm.prank(user);
         hook.cancelOrder(orderId);
 
         uint256 userBalanceAfter = IERC20(USDC_BASE_MAINNET).balanceOf(user);
         uint256 totalReturned = userBalanceAfter - userBalanceBefore;
-        uint256 profit = totalReturned > depositAmount ? totalReturned - depositAmount : 0;
+        console2.log("Cancelled: returned=%s USDC", totalReturned / 1e6);
 
-        console2.log('');
-        console2.log('  Cancellation Results:');
-        console2.log('  Total returned: %s USDC', totalReturned / 1e6);
-        console2.log('  Yield kept:     %s (raw)', profit);
-
-        assertApproxEqAbs(totalReturned, depositAmount, 1, 'Should return at least principal (1 wei ERC-4626 rounding)');
-
+        assertApproxEqAbs(totalReturned, depositAmount, 1);
         (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.CANCELLED));
-
-        console2.log('====================================================');
-        console2.log('');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 6: Fork Oracle Protection
-    // ─────────────────────────────────────────────────────────────
-
     function test_ForkOracleProtection() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  FORK TEST 6: Oracle Protection (Real Chainlink)');
-        console2.log('====================================================');
-
         (, int256 ethPrice,,,) = AggregatorV3Interface(ETH_USD_FEED_BASE_MAINNET).latestRoundData();
 
         uint256 depositAmount = 10_000e6;
-        // forge-lint: disable-next-line(unsafe-typecast)
         uint256 targetPrice = uint256(ethPrice) + 100e8;
         bool zeroForOne = false;
         bytes32 salt = keccak256('forkOracleTest');
@@ -382,27 +248,18 @@ contract GhostVaultForkTest is Test {
         );
         vm.stopPrank();
 
-        console2.log('  Order committed: %s USDC', depositAmount / 1e6);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        console2.log('  Real ETH price:  $%s', uint256(ethPrice) / 1e8);
+        console2.log("Committed %s USDC, ETH=$%s", depositAmount / 1e6, uint256(ethPrice) / 1e8);
 
         vm.warp(block.timestamp + 2 hours);
 
-        GhostVaultHook.RevealData memory reveal =
-            GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
+        GhostVaultHook.RevealData memory reveal = GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
 
         vm.prank(solver);
         vm.expectRevert();
         hook.executeOrder(orderId, reveal);
 
-        console2.log('  After 2 hours without oracle update:');
-        console2.log('  BLOCKED: Oracle is stale (>1 hour old)');
-        console2.log('  User funds remain safe in MetaMorpho vault');
-
+        console2.log("Blocked: oracle stale after 2 hours");
         (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.ACTIVE));
-
-        console2.log('====================================================');
-        console2.log('');
     }
 }

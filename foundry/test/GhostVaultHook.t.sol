@@ -96,16 +96,7 @@ contract GhostVaultHookTest is Test {
         weth.mint(user, INITIAL_WETH);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 1: YieldOrder Full Lifecycle
-    // ─────────────────────────────────────────────────────────────
-
     function test_YieldOrderExecution() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  DEMO 1: YieldOrder Full Lifecycle');
-        console2.log('====================================================');
-
         uint256 depositAmount = 10_000e6;
         uint256 targetPrice = 3000e8;
         bool zeroForOne = true;
@@ -120,9 +111,7 @@ contract GhostVaultHookTest is Test {
         vm.stopPrank();
 
         (uint256 valueBefore,) = hook.getOrderValue(orderId);
-        console2.log('  Committed:          %s USDC', depositAmount / 1e6);
-        console2.log('  Vault shares value: %s USDC', valueBefore / 1e6);
-        console2.log('  Target:             ETH >= $3,000');
+        console2.log("Committed %s USDC, vault value=%s", depositAmount / 1e6, valueBefore / 1e6);
 
         vm.warp(block.timestamp + 30 days);
         _mockOraclePrice(3000e8);
@@ -131,10 +120,7 @@ contract GhostVaultHookTest is Test {
         usdc.mint(address(vault), simulatedYield);
 
         (uint256 valueAfter, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log('');
-        console2.log('  After 30 days:');
-        console2.log('  Vault shares value: %s USDC', valueAfter / 1e6);
-        console2.log('  Yield accrued:      $%s.%s', yieldAccrued / 1e6, (yieldAccrued % 1e6) / 1e4);
+        console2.log("After 30 days: value=%s, yield=%s", valueAfter / 1e6, yieldAccrued);
 
         uint256 userWethBefore = weth.balanceOf(user);
 
@@ -147,13 +133,7 @@ contract GhostVaultHookTest is Test {
         uint256 userWethAfter = weth.balanceOf(user);
         uint256 solverFee = usdc.balanceOf(solver);
 
-        console2.log('');
-        console2.log('  Execution Results:');
-        console2.log('  WETH received by user: %s', userWethAfter - userWethBefore);
-        console2.log('  Solver fee earned:     $%s.%s', solverFee / 1e6, (solverFee % 1e6) / 1e4);
-        console2.log('  Standard limit order yield: $0.00');
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("Executed: WETH=%s, solverFee=%s", userWethAfter - userWethBefore, solverFee);
 
         assertGt(userWethAfter, userWethBefore, 'User should have received WETH');
         assertGt(solverFee, 0, 'Solver should have received a fee');
@@ -162,16 +142,7 @@ contract GhostVaultHookTest is Test {
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.EXECUTED));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 2: GhostOrder Privacy Execution
-    // ─────────────────────────────────────────────────────────────
-
     function test_GhostOrderExecution() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  DEMO 2: GhostOrder Privacy Execution');
-        console2.log('====================================================');
-
         uint256 depositAmount = 50_000e6;
         uint256 minDelay = 1800;
         bool zeroForOne = true;
@@ -186,8 +157,7 @@ contract GhostVaultHookTest is Test {
         );
         vm.stopPrank();
 
-        console2.log('  Committed:     %s USDC (hidden from pool)', depositAmount / 1e6);
-        console2.log('  Min delay:     %s seconds', minDelay);
+        console2.log("Committed %s USDC with %ss delay", depositAmount / 1e6, minDelay);
 
         GhostVaultHook.RevealData memory reveal =
             GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
@@ -195,7 +165,7 @@ contract GhostVaultHookTest is Test {
         vm.prank(solver);
         vm.expectRevert(GhostVaultHook.DelayNotElapsed.selector);
         hook.executeOrder(orderId, reveal);
-        console2.log('  Early execution blocked (DelayNotElapsed)');
+        console2.log("Early execution blocked");
 
         vm.warp(block.timestamp + minDelay + 1);
         _mockOraclePrice(2500e8);
@@ -207,28 +177,12 @@ contract GhostVaultHookTest is Test {
         hook.executeOrder(orderId, reveal);
 
         uint256 userWethAfter = weth.balanceOf(user);
-
-        console2.log('');
-        console2.log('  Execution Results:');
-        console2.log('  Delay elapsed:      31 min');
-        console2.log('  WETH received:      %s', userWethAfter - userWethBefore);
-        console2.log('  MEV exposure:       NONE (funds were in Morpho, not pool)');
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("Executed after delay: WETH=%s", userWethAfter - userWethBefore);
 
         assertGt(userWethAfter, userWethBefore, 'User should have received WETH');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 3: Safe Cancellation with Yield
-    // ─────────────────────────────────────────────────────────────
-
     function test_CancelOrderWithYield() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  DEMO 3: Safe Cancellation (Principal + Yield)');
-        console2.log('====================================================');
-
         uint256 depositAmount = 10_000e6;
         bytes32 intentHash = keccak256(abi.encode(uint256(3000e8), true, keccak256('cancel')));
 
@@ -240,36 +194,21 @@ contract GhostVaultHookTest is Test {
         vm.stopPrank();
 
         uint256 userBalanceBefore = usdc.balanceOf(user);
-        console2.log('  Deposited:      %s USDC', depositAmount / 1e6);
-        console2.log('  User USDC after deposit: %s', userBalanceBefore / 1e6);
+        console2.log("Deposited %s USDC", depositAmount / 1e6);
 
         vm.warp(block.timestamp + 14 days);
         uint256 simulatedYield = 19_945_000;
         usdc.mint(address(vault), simulatedYield);
 
         (uint256 currentValue, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log('');
-        console2.log('  After 14 days:');
-        console2.log('  Current value:  $%s.%s', currentValue / 1e6, (currentValue % 1e6) / 1e4);
-        console2.log('  Yield accrued:  $%s.%s', yieldAccrued / 1e6, (yieldAccrued % 1e6) / 1e4);
+        console2.log("After 14 days: value=%s, yield=%s", currentValue / 1e6, yieldAccrued);
 
         vm.prank(user);
         hook.cancelOrder(orderId);
 
         uint256 userBalanceAfter = usdc.balanceOf(user);
         uint256 totalReturned = userBalanceAfter - userBalanceBefore;
-
-        console2.log('');
-        console2.log('  Cancellation Results:');
-        console2.log('  Principal returned: $%s', depositAmount / 1e6);
-        console2.log(
-            '  Yield kept:         $%s.%s',
-            (totalReturned - depositAmount) / 1e6,
-            ((totalReturned - depositAmount) % 1e6) / 1e4
-        );
-        console2.log('  Total received:     $%s.%s', totalReturned / 1e6, (totalReturned % 1e6) / 1e4);
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("Cancelled: returned=%s USDC", totalReturned / 1e6);
 
         assertGt(userBalanceAfter, userBalanceBefore + depositAmount, 'User should have earned yield');
 
@@ -277,16 +216,7 @@ contract GhostVaultHookTest is Test {
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.CANCELLED));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 4: Oracle Rejects Stale Price
-    // ─────────────────────────────────────────────────────────────
-
     function test_OracleRejectsStalePrice() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  DEMO 4: Oracle Safety - Stale Price Rejection');
-        console2.log('====================================================');
-
         uint256 depositAmount = 10_000e6;
         uint256 targetPrice = 3000e8;
         bool zeroForOne = true;
@@ -300,40 +230,25 @@ contract GhostVaultHookTest is Test {
         );
         vm.stopPrank();
 
+        console2.log("Committed %s USDC", depositAmount / 1e6);
+
         vm.warp(10_000);
         _mockOracleStale(3000e8);
 
         GhostVaultHook.RevealData memory reveal =
             GhostVaultHook.RevealData({targetPrice: targetPrice, zeroForOne: zeroForOne, salt: salt});
 
-        console2.log('  Order committed: 10,000 USDC');
-        console2.log('  Oracle price:    $3,000 (STALE - 2 hours old)');
-        console2.log('  Attempting execution...');
-
         vm.prank(solver);
         vm.expectRevert();
         hook.executeOrder(orderId, reveal);
 
-        console2.log('  BLOCKED: Oracle price is stale (>1 hour old)');
-        console2.log('  User funds remain safe in vault');
+        console2.log("Blocked: oracle stale (2 hours old)");
 
         (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.ACTIVE));
-
-        console2.log('====================================================');
-        console2.log('');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Test 5: Commit-Reveal Hash Verification
-    // ─────────────────────────────────────────────────────────────
-
     function test_CommitRevealRejectsWrongHash() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  DEMO 5: Commit-Reveal - Wrong Hash Rejected');
-        console2.log('====================================================');
-
         uint256 depositAmount = 10_000e6;
         bytes32 realSalt = keccak256('real');
         bytes32 intentHash = keccak256(abi.encode(uint256(3000e8), true, realSalt));
@@ -354,17 +269,8 @@ contract GhostVaultHookTest is Test {
         vm.expectRevert(GhostVaultHook.HashMismatch.selector);
         hook.executeOrder(orderId, fakeReveal);
 
-        console2.log('  Order committed with hidden intent');
-        console2.log('  Attacker tried to reveal with fake data');
-        console2.log('  BLOCKED: HashMismatch - intent tampered');
-        console2.log('  User funds remain safe in vault');
-        console2.log('====================================================');
-        console2.log('');
+        console2.log("Blocked: HashMismatch on fake reveal data");
     }
-
-    // ─────────────────────────────────────────────────────────────
-    //  Test 6: Only Owner Can Cancel
-    // ─────────────────────────────────────────────────────────────
 
     function test_OnlyOwnerCanCancel() public {
         uint256 depositAmount = 10_000e6;
@@ -381,10 +287,6 @@ contract GhostVaultHookTest is Test {
         vm.expectRevert(GhostVaultHook.NotOrderOwner.selector);
         hook.cancelOrder(orderId);
     }
-
-    // ─────────────────────────────────────────────────────────────
-    //  Test 7: Price Condition Not Met
-    // ─────────────────────────────────────────────────────────────
 
     function test_PriceConditionNotMet() public {
         uint256 depositAmount = 10_000e6;
@@ -407,10 +309,6 @@ contract GhostVaultHookTest is Test {
         vm.expectRevert(GhostVaultHook.PriceConditionNotMet.selector);
         hook.executeOrder(0, reveal);
     }
-
-    // ─────────────────────────────────────────────────────────────
-    //  Test 8: Slippage Protection
-    // ─────────────────────────────────────────────────────────────
 
     function test_SlippageProtection() public {
         uint256 depositAmount = 10_000e6;
@@ -441,10 +339,6 @@ contract GhostVaultHookTest is Test {
         (,, GhostVaultHook.OrderStatus status,,,,,,) = hook.getOrder(orderId);
         assertEq(uint8(status), uint8(GhostVaultHook.OrderStatus.ACTIVE));
     }
-
-    // ─────────────────────────────────────────────────────────────
-    //  Oracle Helpers
-    // ─────────────────────────────────────────────────────────────
 
     function _mockOraclePrice(int256 price) internal {
         vm.mockCall(
