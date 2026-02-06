@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { parseUnits, keccak256, encodePacked } from "viem"
+import { useState, useCallback, useEffect } from "react"
+import { parseUnits, keccak256, encodePacked, formatUnits } from "viem"
 import { useAccount } from "wagmi"
 
 import { Button } from "@/components/ui/button"
@@ -14,8 +14,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { useCommitOrder } from "@/hooks/use-ghost-vault"
-import { OrderType, TOKEN_OPTIONS, type OrderTypeName } from "@/lib/contracts"
+import {
+  useCommitOrder,
+  useAllowance,
+  useApprove,
+  useTokenBalance,
+} from "@/hooks/use-ghost-vault"
+import {
+  OrderType,
+  TOKEN_OPTIONS,
+  GHOST_VAULT_ADDRESS,
+  type OrderTypeName,
+} from "@/lib/contracts"
 import type { Address } from "viem"
 
 const ORDER_TYPE_OPTIONS: {
@@ -37,7 +47,18 @@ const ORDER_TYPE_OPTIONS: {
 
 export function CommitOrderForm() {
   const { isConnected } = useAccount()
-  const { commitOrder, isPending, isSuccess } = useCommitOrder()
+  const {
+    commitOrder,
+    isPending: isCommitPending,
+    isSuccess: isCommitSuccess,
+  } = useCommitOrder()
+
+  const {
+    approve,
+    isPending: isApprovePending,
+    isSuccess: isApproveSuccess,
+    reset: resetApprove,
+  } = useApprove()
 
   const [orderType, setOrderType] = useState<OrderTypeName>("YIELD_ORDER")
   const [tokenIn, setTokenIn] = useState<Address>(TOKEN_OPTIONS[0].address)
@@ -49,13 +70,48 @@ export function CommitOrderForm() {
     TOKEN_OPTIONS.find(t => t.address === tokenIn) ?? TOKEN_OPTIONS[0]
   const isGhostOrder = orderType === "GHOST_ORDER"
 
+  // Get current allowance and balance
+  const { data: allowance, refetch: refetchAllowance } = useAllowance(
+    tokenIn,
+    GHOST_VAULT_ADDRESS,
+  )
+  const { data: balance } = useTokenBalance(tokenIn)
+
+  // Parse amount for comparison
+  const parsedAmount = amount
+    ? parseUnits(amount, selectedToken.decimals)
+    : 0n
+
+  // Check if approval is needed
+  const needsApproval =
+    parsedAmount > 0n && (allowance === undefined || allowance < parsedAmount)
+
+  // Refetch allowance after approval tx sent
+  useEffect(() => {
+    if (isApproveSuccess) {
+      // Give the tx time to be mined, then refetch
+      const timer = setTimeout(() => refetchAllowance(), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [isApproveSuccess, refetchAllowance])
+
+  // Reset approval state when token or amount changes
+  useEffect(() => {
+    resetApprove()
+  }, [tokenIn, amount, resetApprove])
+
+  const handleApprove = useCallback(() => {
+    if (!parsedAmount) return
+    approve(tokenIn, GHOST_VAULT_ADDRESS, parsedAmount)
+  }, [approve, tokenIn, parsedAmount])
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
       if (!amount) return
       if (!isGhostOrder && !targetPrice) return
+      if (needsApproval) return // Safety check
 
-      const parsedAmount = parseUnits(amount, selectedToken.decimals)
       const parsedPrice = targetPrice ? parseUnits(targetPrice, 8) : 0n
       const parsedDelay =
         isGhostOrder && minDelay ? BigInt(Number(minDelay) * 60) : 0n
@@ -86,11 +142,20 @@ export function CommitOrderForm() {
       minDelay,
       tokenIn,
       orderType,
-      selectedToken.decimals,
+      parsedAmount,
       isGhostOrder,
+      needsApproval,
       commitOrder,
     ],
   )
+
+  // Format balance for display
+  const formattedBalance = balance
+    ? formatUnits(balance, selectedToken.decimals)
+    : "0"
+
+  // Button state - simpler: just check if tx is pending
+  const isApproving = isApprovePending
 
   return (
     <Card>
@@ -146,6 +211,12 @@ export function CommitOrderForm() {
                 </button>
               ))}
             </div>
+            {isConnected && (
+              <p className="text-xs text-muted-foreground">
+                Balance: {Number(formattedBalance).toLocaleString()}{" "}
+                {selectedToken.symbol}
+              </p>
+            )}
           </div>
 
           {/* Amount */}
@@ -202,20 +273,66 @@ export function CommitOrderForm() {
             </div>
           ) : null}
 
-          {/* Submit */}
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={!isConnected || isPending || !amount}
-          >
-            {!isConnected
-              ? "Connect Wallet"
-              : isPending
-                ? "Confirming..."
-                : `Commit ${isGhostOrder ? "Ghost" : "Yield"} Order`}
-          </Button>
+          {/* Approval Status */}
+          {isConnected && parsedAmount > 0n && (
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
+              {needsApproval ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                  <span className="text-muted-foreground">
+                    Step 1: Approve {selectedToken.symbol} spending
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="text-muted-foreground">
+                    {selectedToken.symbol} approved — ready to commit
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
-          {isSuccess ? (
+          {/* Buttons */}
+          <div className="space-y-2">
+            {/* Approve Button - always show when approval needed */}
+            {needsApproval && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleApprove}
+                disabled={!isConnected || isApproving || !parsedAmount}
+              >
+                {isApproving
+                  ? "Sending..."
+                  : `Approve ${selectedToken.symbol}`}
+              </Button>
+            )}
+
+            {/* Commit Button */}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                !isConnected ||
+                isCommitPending ||
+                !amount ||
+                needsApproval
+              }
+            >
+              {!isConnected
+                ? "Connect Wallet"
+                : isCommitPending
+                  ? "Confirming..."
+                  : needsApproval
+                    ? "Approve First"
+                    : `Commit ${isGhostOrder ? "Ghost" : "Yield"} Order`}
+            </Button>
+          </div>
+
+          {isCommitSuccess ? (
             <p className="text-center text-sm text-green-500">
               Order committed — tokens deposited into MetaMorpho vault.
             </p>

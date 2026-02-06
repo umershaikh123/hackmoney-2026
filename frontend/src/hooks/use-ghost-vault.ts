@@ -1,7 +1,7 @@
 "use client"
 
-import { useReadContract, useWriteContract, useAccount } from "wagmi"
-import { ghostVaultAbi } from "@/lib/abi"
+import { useReadContract, useWriteContract, useAccount, useWaitForTransactionReceipt } from "wagmi"
+import { ghostVaultAbi, erc20Abi } from "@/lib/abi"
 import { GHOST_VAULT_ADDRESS, DEFAULT_POOL_KEY } from "@/lib/contracts"
 import type { Address } from "viem"
 
@@ -91,4 +91,58 @@ export function useUserOrders() {
   }
 
   return { orderIds, isLoading, address }
+}
+
+// ERC-20 approval hooks for token spending
+export function useAllowance(token: Address, spender: Address) {
+  const { address: owner } = useAccount()
+
+  return useReadContract({
+    address: token,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: owner ? [owner, spender] : undefined,
+    query: {
+      enabled: !!owner,
+      refetchInterval: 5_000,
+    },
+  })
+}
+
+export function useTokenBalance(token: Address) {
+  const { address: owner } = useAccount()
+
+  return useReadContract({
+    address: token,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: owner ? [owner] : undefined,
+    query: {
+      enabled: !!owner,
+      refetchInterval: 10_000,
+    },
+  })
+}
+
+export function useApprove() {
+  const { writeContract, data: hash, isPending, isSuccess, isError, error, reset } = useWriteContract()
+
+  function approve(token: Address, spender: Address, amount: bigint) {
+    writeContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [spender, amount],
+    })
+  }
+
+  return {
+    approve,
+    hash,
+    isPending,
+    isSuccess,
+    isError,
+    error,
+    reset,
+  }
 }
