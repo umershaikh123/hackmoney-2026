@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="GhostVault Logo" width="200" />
+</p>
+
 # GhostVault
 
 A Uniswap v4 Hook that turns waiting capital into yield while hiding trade intent from MEV.
@@ -206,6 +210,28 @@ hackmoney-2026/
 - [Future Steps](FUTURE.md) — Where we go from here
 - [Agent Documentation](agent/README.md) — How the solver works
 - [Contract Documentation](foundry/README.md) — Technical details
+
+---
+
+## Code References
+
+### Agentic Finance
+
+- [agent/src/index.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/agent/src/index.ts) — Main agent daemon loop
+- [agent/src/checker.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/agent/src/checker.ts) — Condition checking
+- [agent/src/executor.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/agent/src/executor.ts) — On-chain execution
+- [agent/src/gateway.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/agent/src/gateway.ts) — x402 payment gateway
+- [GhostVaultHookV2.sol#L291-L334](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L291-L334) — executeOrder
+- [GhostVaultHookV2.sol#L515-L544](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L515-L544) — PoolManager interaction
+
+### Privacy DeFi
+
+- [GhostVaultHookV2.sol#L247-L285](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L247-L285) — commitOrder (hash only)
+- [GhostVaultHookV2.sol#L296-L297](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L296-L297) — Hash verification
+- [GhostVaultHookV2.sol#L302](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L302) — Time delay enforcement
+- [GhostVaultHookV2.sol#L347-L423](https://github.com/umershaikh123/hackmoney-2026/blob/main/foundry/src/GhostVaultHookV2.sol#L347-L423) — Batch execution
+- [use-ghost-vault.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/frontend/src/hooks/use-ghost-vault.ts) — Client-side salt generation
+- [reveal-data-store.ts](https://github.com/umershaikh123/hackmoney-2026/blob/main/frontend/src/stores/reveal-data-store.ts) — Local reveal storage
 
 ---
 
