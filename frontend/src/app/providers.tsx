@@ -9,6 +9,12 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
 
 import "@rainbow-me/rainbowkit/styles.css"
 
+// Enable BigInt serialization for React Query cache keys
+// @ts-expect-error BigInt serialization polyfill
+BigInt.prototype.toJSON = function () {
+  return this.toString()
+}
+
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
 
@@ -21,8 +27,8 @@ export function Providers({ children }: { children: ReactNode }) {
             borderRadius: "medium",
           })}
         >
-          {children}
           <ReactQueryDevtools initialIsOpen={false} client={queryClient} />
+          {children}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

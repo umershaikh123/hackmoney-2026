@@ -13,11 +13,23 @@ interface RevealDataStore {
   // Map of order intentHash -> reveal data
   reveals: Record<string, { targetPrice: string; zeroForOne: boolean; salt: string }>
 
+  // Map of orderId -> intentHash (for batch execution lookup)
+  orderIntentHashes: Record<string, string>
+
   // Store reveal data by intentHash
   setReveal: (intentHash: string, data: RevealData) => void
 
+  // Link an orderId to its intentHash (called after order creation)
+  linkOrderId: (orderId: string, intentHash: string) => void
+
   // Get reveal data by intentHash
   getReveal: (intentHash: string) => RevealData | null
+
+  // Get reveal data by orderId
+  getRevealByOrderId: (orderId: string) => RevealData | null
+
+  // Get intentHash for an orderId
+  getIntentHash: (orderId: string) => string | null
 
   // Clear all
   clear: () => void
@@ -27,6 +39,7 @@ export const useRevealDataStore = create<RevealDataStore>()(
   persist(
     (set, get) => ({
       reveals: {},
+      orderIntentHashes: {},
 
       setReveal: (intentHash, data) => {
         set(state => ({
@@ -41,6 +54,15 @@ export const useRevealDataStore = create<RevealDataStore>()(
         }))
       },
 
+      linkOrderId: (orderId, intentHash) => {
+        set(state => ({
+          orderIntentHashes: {
+            ...state.orderIntentHashes,
+            [orderId]: intentHash,
+          },
+        }))
+      },
+
       getReveal: (intentHash) => {
         const stored = get().reveals[intentHash]
         if (!stored) return null
@@ -51,7 +73,17 @@ export const useRevealDataStore = create<RevealDataStore>()(
         }
       },
 
-      clear: () => set({ reveals: {} }),
+      getRevealByOrderId: (orderId) => {
+        const intentHash = get().orderIntentHashes[orderId]
+        if (!intentHash) return null
+        return get().getReveal(intentHash)
+      },
+
+      getIntentHash: (orderId) => {
+        return get().orderIntentHashes[orderId] || null
+      },
+
+      clear: () => set({ reveals: {}, orderIntentHashes: {} }),
     }),
     {
       name: "reveal-data-storage",

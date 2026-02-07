@@ -62,18 +62,29 @@ const STATUS_VARIANT: Record<number, "default" | "secondary" | "outline"> = {
   [OrderStatus.CANCELLED]: "outline",
 }
 
-export function OrderCard({ orderId }: { orderId: bigint }) {
+interface OrderCardProps {
+  orderId: bigint
+  batchMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
+}
+
+export function OrderCard({
+  orderId,
+  batchMode = false,
+  isSelected = false,
+  onToggleSelect,
+}: OrderCardProps) {
   const { address } = useAccount()
   const queryClient = useQueryClient()
   const getReveal = useRevealDataStore(state => state.getReveal)
 
-  // getOrder returns: [owner, orderType, status, tokenIn, amountIn, vaultShares, intentHash, createdAt, minDelay]
   const { data: order, isLoading: orderLoading } = useGetOrder(orderId)
-  // getOrderValue returns: [currentValue, yieldAccrued]
+
   const { data: value, isLoading: valueLoading } = useGetOrderValue(orderId)
-  // Get cached event data for executed/cancelled orders
+
   const orderResult = useOrderResult(orderId)
-  // Get current block for timestamp (reflects Anvil time warps)
+
   const { data: block } = useBlock({ watch: true })
 
   // Cancel order tx
@@ -164,7 +175,6 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
 
   if (!order) return null
 
-  // getOrder returns a tuple: [owner, orderType, status, tokenIn, amountIn, vaultShares, intentHash, createdAt, minDelay]
   const data = order as readonly [
     string,
     number,
@@ -250,12 +260,28 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
   const timeActive =
     elapsedSeconds > 0 ? formatElapsedTime(elapsedSeconds) : "—"
 
+  const canSelect = batchMode && isActive && revealData !== null
+
   return (
-    <Card className={isActive ? "" : "opacity-50"}>
+    <Card
+      className={`${isActive ? "" : "opacity-50"} ${isSelected ? "ring-2 ring-primary" : ""}`}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
-        <CardTitle className="text-sm font-medium">
-          Order #{orderId.toString()}
-        </CardTitle>
+        <div className="flex items-center gap-3">
+          {/* Batch Selection Checkbox */}
+          {batchMode && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              disabled={!canSelect}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50"
+            />
+          )}
+          <CardTitle className="text-sm font-medium">
+            Order #{orderId.toString()}
+          </CardTitle>
+        </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">
             {ORDER_TYPE_LABELS[orderTypeNum] ?? "Unknown"}
@@ -401,8 +427,9 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
             <div className="space-y-1 mt-2 text-sm">
               {orderResult?.type === "executed" ? (
                 <>
-                  {/* Show swap details if available from Uniswap event */}
-                  {orderResult.data.swap ? (
+                  {/* Show swap details only for single execution (amountOut > 0)
+                      For batch execution, amountOut is 0 and swap data is the total, not per-order */}
+                  {orderResult.data.swap && orderResult.data.amountOut > 0n ? (
                     <>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Swapped</span>
@@ -433,7 +460,7 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
                         </span>
                       </div>
                     </>
-                  ) : (
+                  ) : orderResult.data.amountOut > 0n ? (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Received</span>
                       <span className="font-mono">
@@ -445,6 +472,11 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
                         ).toFixed(6)}{" "}
                         {symbol === "USDC" ? "WETH" : "USDC"}
                       </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Execution</span>
+                      <span className="font-mono text-primary">Batch</span>
                     </div>
                   )}
                   <div className="flex justify-between">

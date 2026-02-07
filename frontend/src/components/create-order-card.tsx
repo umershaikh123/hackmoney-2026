@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useAccount,
+  useReadContract,
 } from "wagmi"
 import {
   parseUnits,
@@ -45,10 +46,20 @@ const POOL_KEY = {
 export function CreateOrderCard() {
   const { isConnected, address } = useAccount()
   const setReveal = useRevealDataStore(state => state.setReveal)
+  const linkOrderId = useRevealDataStore(state => state.linkOrderId)
   const [orderType, setOrderType] = useState<OrderTypeName>("YIELD_ORDER")
   const [amount, setAmount] = useState("1000")
   const [targetPrice, setTargetPrice] = useState("2500")
   const [minDelay, setMinDelay] = useState("60")
+
+  const pendingIntentHash = useRef<string | null>(null)
+  const pendingOrderId = useRef<bigint | null>(null)
+
+  const { data: nextOrderId, refetch: refetchNextOrderId } = useReadContract({
+    address: GHOST_VAULT_ADDRESS,
+    abi: ghostVaultAbi,
+    functionName: "nextOrderId",
+  })
 
   const parsedAmount = amount ? parseUnits(amount, 6) : 0n
   const isGhostOrder = orderType === "GHOST_ORDER"
@@ -106,7 +117,9 @@ export function CreateOrderCard() {
     if (!parsedAmount) return
 
     // Generate intent hash
-    const salt = keccak256(encodePacked(["uint256"], [BigInt(Date.now())])) as `0x${string}`
+    const salt = keccak256(
+      encodePacked(["uint256"], [BigInt(Date.now())]),
+    ) as `0x${string}`
     const parsedPrice = isGhostOrder ? 0n : parseUnits(targetPrice || "0", 8)
     const zeroForOne = false
     const intentHash = keccak256(
@@ -118,6 +131,9 @@ export function CreateOrderCard() {
 
     // Store reveal data for later execution
     setReveal(intentHash, { targetPrice: parsedPrice, zeroForOne, salt })
+
+    pendingIntentHash.current = intentHash
+    pendingOrderId.current = (nextOrderId as bigint) ?? 0n
 
     const parsedDelay = isGhostOrder ? BigInt(Number(minDelay || "0")) : 0n
 
@@ -136,6 +152,20 @@ export function CreateOrderCard() {
       ],
     })
   }
+
+  // Link orderId to intentHash after commit success
+  useEffect(() => {
+    if (
+      commitConfirmed &&
+      pendingIntentHash.current !== null &&
+      pendingOrderId.current !== null
+    ) {
+      linkOrderId(pendingOrderId.current.toString(), pendingIntentHash.current)
+      pendingIntentHash.current = null
+      pendingOrderId.current = null
+      refetchNextOrderId()
+    }
+  }, [commitConfirmed, linkOrderId, refetchNextOrderId])
 
   const handleReset = () => {
     resetApprove()
@@ -260,7 +290,10 @@ export function CreateOrderCard() {
               className="flex-1"
               onClick={handleApprove}
               disabled={
-                !isConnected || approvePending || approveConfirming || !parsedAmount
+                !isConnected ||
+                approvePending ||
+                approveConfirming ||
+                !parsedAmount
               }
             >
               {approvePending
@@ -300,7 +333,12 @@ export function CreateOrderCard() {
             <p className="text-center text-sm text-green-500">
               Order committed! Funds deposited to vault.
             </p>
-            <Button variant="ghost" size="sm" className="w-full" onClick={handleReset}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={handleReset}
+            >
               Create Another
             </Button>
           </div>
