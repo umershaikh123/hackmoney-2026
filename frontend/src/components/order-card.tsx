@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { formatUnits } from "viem"
 import {
   useAccount,
@@ -78,6 +79,7 @@ export function OrderCard({
   const { address } = useAccount()
   const queryClient = useQueryClient()
   const getReveal = useRevealDataStore(state => state.getReveal)
+  const removeOrder = useRevealDataStore(state => state.removeOrder)
 
   const { data: order, isLoading: orderLoading } = useGetOrder(orderId)
 
@@ -134,10 +136,21 @@ export function OrderCard({
     executeReceiptError ||
     (executeReverted ? new Error("Transaction reverted") : null)
 
-  // Refresh data after cancel/execute
-  if (cancelSuccess || executeSuccess) {
-    queryClient.invalidateQueries({ queryKey: ["readContract"] })
-  }
+  // Cleanup reveal data and refresh queries after successful cancel
+  useEffect(() => {
+    if (cancelSuccess && !cancelReverted) {
+      removeOrder(orderId.toString())
+      queryClient.invalidateQueries({ queryKey: ["readContract"] })
+    }
+  }, [cancelSuccess, cancelReverted, orderId, removeOrder, queryClient])
+
+  // Cleanup reveal data and refresh queries after successful execute
+  useEffect(() => {
+    if (executeSuccess && !executeReverted) {
+      removeOrder(orderId.toString())
+      queryClient.invalidateQueries({ queryKey: ["readContract"] })
+    }
+  }, [executeSuccess, executeReverted, orderId, removeOrder, queryClient])
 
   const getErrorMessage = (error: Error | null): string | null => {
     if (!error) return null

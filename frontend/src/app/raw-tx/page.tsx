@@ -16,7 +16,7 @@ import { ghostVaultAbi } from "@/lib/abi"
 // Hardcoded addresses from cast commands
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const
 const WETH = "0x4200000000000000000000000000000000000006" as const
-const HOOK = "0x0DA88c243E294861ae094Bf74A3689b6764980c0" as const
+const HOOK = "0x6a5e55f7ac5746B36Bd8abD155F81E7c785240C0" as const
 
 const AMOUNT = parseUnits("1000", 6) // 1000 USDC
 

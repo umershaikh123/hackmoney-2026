@@ -3,6 +3,7 @@
 import { CreateOrderCard } from "@/components/create-order-card"
 import { OracleControls } from "@/components/oracle-controls"
 import { TimeWarpControls } from "@/components/time-warp-controls"
+import { ExportRevealData } from "@/components/export-reveal-data"
 import { OrderList } from "@/components/order-list"
 
 export function Dashboard() {
@@ -40,10 +41,11 @@ export function Dashboard() {
         {/* Left: Create Order */}
         <CreateOrderCard />
 
-        {/* Right: Oracle + Time Controls */}
+        {/* Right: Oracle + Time Controls + Agent Export */}
         <div className="space-y-6">
           <OracleControls />
           <TimeWarpControls />
+          <ExportRevealData />
         </div>
       </div>
 

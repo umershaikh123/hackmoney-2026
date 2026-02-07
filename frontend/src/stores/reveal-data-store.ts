@@ -31,6 +31,9 @@ interface RevealDataStore {
   // Get intentHash for an orderId
   getIntentHash: (orderId: string) => string | null
 
+  // Remove reveal data for an executed/cancelled order
+  removeOrder: (orderId: string) => void
+
   // Clear all
   clear: () => void
 }
@@ -81,6 +84,20 @@ export const useRevealDataStore = create<RevealDataStore>()(
 
       getIntentHash: (orderId) => {
         return get().orderIntentHashes[orderId] || null
+      },
+
+      removeOrder: (orderId) => {
+        const intentHash = get().orderIntentHashes[orderId]
+        if (!intentHash) return
+
+        set(state => {
+          const { [intentHash]: _, ...remainingReveals } = state.reveals
+          const { [orderId]: __, ...remainingHashes } = state.orderIntentHashes
+          return {
+            reveals: remainingReveals,
+            orderIntentHashes: remainingHashes,
+          }
+        })
       },
 
       clear: () => set({ reveals: {}, orderIntentHashes: {} }),
