@@ -1,16 +1,13 @@
-"use client";
+"use client"
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Separator } from "@/components/ui/separator";
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { Separator } from "@/components/ui/separator"
 
 export function Header() {
   return (
     <header className="border-b border-border bg-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            GV
-          </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-foreground">
               GhostVault
@@ -34,5 +31,5 @@ export function Header() {
         </div>
       </div>
     </header>
-  );
+  )
 }

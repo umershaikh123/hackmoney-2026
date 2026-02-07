@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useGetOrder, useGetOrderValue } from "@/hooks/use-ghost-vault"
+import { useOrderResult } from "@/hooks/use-order-events"
 import {
   ORDER_TYPE_LABELS,
   ORDER_STATUS_LABELS,
@@ -42,6 +43,8 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
   const { data: order, isLoading: orderLoading } = useGetOrder(orderId)
   // getOrderValue returns: [currentValue, yieldAccrued]
   const { data: value, isLoading: valueLoading } = useGetOrderValue(orderId)
+  // Get cached event data for executed/cancelled orders
+  const orderResult = useOrderResult(orderId)
 
   if (orderLoading) {
     return (
@@ -112,19 +115,24 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
             {formattedAmount} {symbol}
           </span>
 
-          <span className="text-muted-foreground">Current Value</span>
-          <span className="text-right font-mono">
-            {valueLoading ? (
-              <Skeleton className="ml-auto h-4 w-16" />
-            ) : (
-              `${currentValue} ${symbol}`
-            )}
-          </span>
+          {/* Only show current value and yield for ACTIVE orders */}
+          {isActive && (
+            <>
+              <span className="text-muted-foreground">Current Value</span>
+              <span className="text-right font-mono">
+                {valueLoading ? (
+                  <Skeleton className="ml-auto h-4 w-16" />
+                ) : (
+                  `${currentValue} ${symbol}`
+                )}
+              </span>
 
-          <span className="text-muted-foreground">Yield Earned</span>
-          <span className="text-right font-mono text-green-500">
-            +{yieldAccrued} {symbol}
-          </span>
+              <span className="text-muted-foreground">Yield Earned</span>
+              <span className="text-right font-mono text-green-500">
+                +{yieldAccrued} {symbol}
+              </span>
+            </>
+          )}
 
           <span className="text-muted-foreground">Created</span>
           <span className="text-right">{formattedDate}</span>
@@ -138,6 +146,102 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
             </>
           ) : null}
         </div>
+
+        {/* Executed Order Result */}
+        {statusNum === OrderStatus.EXECUTED && (
+          <div className="mt-4 rounded-lg bg-green-500/10 p-3">
+            <div className="text-sm font-medium text-green-400">Order Executed</div>
+            <div className="space-y-1 mt-2 text-sm">
+              {orderResult?.type === 'executed' ? (
+                <>
+                  {/* Show swap details if available from Uniswap event */}
+                  {orderResult.data.swap ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Swapped</span>
+                        <span className="font-mono">
+                          {Number(formatUnits(orderResult.data.swap.amount1 > 0n ? orderResult.data.swap.amount1 : -orderResult.data.swap.amount1, 6)).toFixed(2)} USDC
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Received</span>
+                        <span className="font-mono">
+                          {Number(formatUnits(orderResult.data.swap.amount0 < 0n ? -orderResult.data.swap.amount0 : orderResult.data.swap.amount0, 18)).toFixed(6)} WETH
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Received</span>
+                      <span className="font-mono">
+                        {Number(formatUnits(orderResult.data.amountOut, symbol === "USDC" ? 18 : 6)).toFixed(6)} {symbol === "USDC" ? "WETH" : "USDC"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Yield Earned</span>
+                    <span className="text-green-400 font-mono">
+                      +{Number(formatUnits(orderResult.data.yieldEarned, decimals)).toFixed(2)} {symbol}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Solver Fee</span>
+                    <span className="text-muted-foreground font-mono">
+                      -{Number(formatUnits(orderResult.data.solverFee, decimals)).toFixed(2)} {symbol}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Principal + Yield</span>
+                  <span>{formattedAmount}+ {symbol}</span>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-2">
+                Swapped to {symbol === "USDC" ? "WETH" : "USDC"} via Uniswap v4
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancelled Order Result */}
+        {statusNum === OrderStatus.CANCELLED && (
+          <div className="mt-4 rounded-lg bg-blue-500/10 p-3">
+            <div className="text-sm font-medium text-blue-400">Funds Returned</div>
+            <div className="space-y-1 mt-2 text-sm">
+              {orderResult?.type === 'cancelled' ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Principal</span>
+                    <span className="font-mono">
+                      {formattedAmount} {symbol}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Yield Earned</span>
+                    <span className="text-green-400 font-mono">
+                      +{Number(formatUnits(orderResult.data.yieldEarned, decimals)).toFixed(2)} {symbol}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-medium pt-1 border-t border-border mt-1">
+                    <span>Total Returned</span>
+                    <span className="font-mono">
+                      {Number(formatUnits(orderResult.data.principalReturned, decimals)).toFixed(2)} {symbol}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Principal + Yield</span>
+                  <span>{formattedAmount}+ {symbol}</span>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-2">
+                Principal and accrued yield were returned to your wallet
+              </div>
+            </div>
+          </div>
+        )}
 
       </CardContent>
     </Card>

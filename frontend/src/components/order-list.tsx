@@ -11,10 +11,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderCard } from "@/components/order-card";
 import { useUserOrders } from "@/hooks/use-ghost-vault";
+import { useOrderEvents } from "@/hooks/use-order-events";
 
 export function OrderList() {
   const { isConnected } = useAccount();
   const { orderIds, isLoading } = useUserOrders();
+
+  // Fetch and cache order events (executed/cancelled results)
+  useOrderEvents();
 
   if (!isConnected) {
     return (

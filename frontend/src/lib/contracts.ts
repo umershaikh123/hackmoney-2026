@@ -9,6 +9,9 @@ export const GHOST_VAULT_ADDRESS: Address =
 export const USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const WETH: Address = "0x4200000000000000000000000000000000000006";
 
+// Uniswap v4 PoolManager on Base mainnet
+export const POOL_MANAGER: Address = "0x498581fF718922c3f8e6A244956aF099B2652b2b";
+
 // Order types matching the contract enum
 export const OrderType = {
   YIELD_ORDER: 0,
