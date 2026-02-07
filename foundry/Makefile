@@ -100,7 +100,7 @@ USDC := 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 WETH := 0x4200000000000000000000000000000000000006
 ANVIL_RPC := http://127.0.0.1:8545
 
-.PHONY: demo-anvil demo-setup demo
+.PHONY: demo-anvil demo-setup demo-full demo
 
 demo-anvil:
 	@test -n "$(BASE_MAINNET_RPC)" || (echo "ERROR: BASE_MAINNET_RPC not set"; exit 1)
@@ -125,7 +125,23 @@ demo-setup:
 	@echo "  USDC: $$(cast call $(USDC) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
 	@echo "  WETH: $$(cast call $(WETH) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
 	@echo ""
-	@echo "Run 'make demo' to execute the automated demo"
+	@echo "Run 'make demo-full' for complete setup or 'make demo' for automated demo"
+
+demo-full: demo-setup
+	@echo ""
+	@echo "[4/5] Deploying SimpleYieldVault..."
+	@forge script script/UseSimpleVault.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
+	@echo ""
+	@echo "[5/5] Initializing pool + adding liquidity..."
+	@forge script script/InitPool.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
+	@echo ""
+	@echo "=== Demo Ready ==="
+	@echo "Hook: $$(cat .hook_address)"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Set env vars: HOOK=\$$(cat .hook_address) USDC=$(USDC) WETH=$(WETH) PK=$(DEMO_PK) RPC=$(ANVIL_RPC)"
+	@echo "  2. Follow DEMO.md for commit/execute/cancel flows"
+	@echo ""
 
 demo:
 	@echo ""
@@ -150,9 +166,10 @@ clean-logs:
 help:
 	@echo "GhostVault Makefile"
 	@echo ""
-	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: demo-setup + demo):"
+	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: demo-full):"
 	@echo "  make demo-anvil   Start Anvil fork"
 	@echo "  make demo-setup   Deploy hook + fund account"
+	@echo "  make demo-full    Full setup (hook + vault + pool) - RECOMMENDED"
 	@echo "  make demo         Run automated demo (YieldOrder, GhostOrder, Cancel)"
 	@echo ""
 	@echo "Build:"

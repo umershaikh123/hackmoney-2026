@@ -30,7 +30,36 @@ make test-fork      # Fork tests (requires RPC)
 
 ## Demo Flow
 
-### Option A: Automated Demo (Recommended)
+### Option A: Frontend + Terminal (Recommended)
+
+Use the frontend to generate cast commands and visualize on-chain state:
+
+```bash
+# Terminal 1: Start Anvil fork
+make demo-anvil
+
+# Terminal 2: Deploy hook + fund demo account
+make demo-setup
+
+# Terminal 3: Start frontend
+cd ../frontend && npm run dev
+```
+
+**Demo workflow:**
+1. Open http://localhost:3000 and connect wallet (MetaMask with Anvil account)
+2. In "Cast Commands" section:
+   - Select order type (Ghost or Yield)
+   - Set amount (e.g., 1000 USDC)
+   - Set delay for Ghost orders (e.g., 60 seconds)
+3. Copy and run commands in Terminal 2:
+   - Copy "Approve USDC" command → paste → execute
+   - Copy "Commit Order" command → paste → execute
+4. Watch the order appear in "Orders" section
+5. Copy and run "Cancel Order" command to see status change
+
+See `../frontend/DEMO_COMMANDS.md` for detailed command reference.
+
+### Option B: Automated Demo
 
 Single command showcases YieldOrder, GhostOrder, and Cancel with yield:
 
@@ -48,7 +77,7 @@ The automated demo shows:
 2. **GhostOrder** — Commit 1000 USDC with 60s delay, early execution blocked, execute after delay
 3. **Cancel** — Commit 2000 USDC, simulate 7 days, cancel and receive principal + yield
 
-### Option B: Fork Tests
+### Option C: Fork Tests
 
 Shows yield accrual, oracle protection, and batch execution:
 
@@ -56,9 +85,9 @@ Shows yield accrual, oracle protection, and batch execution:
 make test-v2-fork -vvv
 ```
 
-### Option C: Manual Cast Commands
+### Option D: Manual Cast Commands
 
-For step-by-step exploration:
+For step-by-step exploration without frontend:
 
 ```bash
 # Terminal 1: Start Anvil fork
@@ -139,15 +168,28 @@ DEPLOYER_PRIVATE_KEY=0x...  # For deployment only
 
 ## Demo Approach
 
-### Why Terminal Instead of Frontend
+### Cast Commands + Frontend Visualization
 
-We built a complete Next.js + wagmi + RainbowKit frontend (`../frontend/`), but encountered issues running it against Anvil fork:
+We split the demo into **input** (terminal) and **output** (frontend):
 
-1. **Transaction tracking**: wagmi's `useWaitForTransactionReceipt` doesn't reliably track confirmations on Anvil
-2. **Approval flow stuck**: UI shows "Approving..." indefinitely even when tx succeeds on-chain
-3. **State sync issues**: React state doesn't update after successful transactions
+| Layer | Role | Component |
+|-------|------|-----------|
+| **Input** | Execute transactions | Terminal (`cast send`) or frontend command generator |
+| **Output** | Visualize state | Frontend order list (read-only) |
 
-The frontend code is functional and would work with real testnet RPCs, but Anvil-specific quirks make it unreliable for a live demo. We chose the terminal-based Foundry approach for guaranteed reliability.
+**Why this approach:**
+1. **Reliable transactions**: Cast commands work perfectly with Anvil fork
+2. **Educational**: Shows raw contract calls — users learn the actual function signatures
+3. **Real-time visualization**: Frontend reads on-chain state and displays orders with status, value, and yield
+4. **Portable**: Commands can be used with any terminal, not locked to a specific wallet
+
+**Frontend features:**
+- Parameter inputs (order type, amount, delay) generate corresponding cast commands
+- Copy-to-clipboard for each command (approve, commit, cancel)
+- Order cards display vault value and yield accrued in real-time
+- Dark theme with protocol branding
+
+See `../frontend/DEMO_COMMANDS.md` for the complete command reference.
 
 ### Mocks Used in Demo
 
