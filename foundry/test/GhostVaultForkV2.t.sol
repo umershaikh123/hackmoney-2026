@@ -118,7 +118,7 @@ contract GhostVaultForkV2Test is Test {
         uint256 valueAfter = vault.convertToAssets(shares);
         uint256 yieldEarned = valueAfter > depositAmount ? valueAfter - depositAmount : 0;
 
-        console2.log("After 7 days: value=%s, yield=%s", valueAfter / 1e6, yieldEarned);
+        console2.log("After 7 days: value=%s, yield=%s (0 expected, vm.warp doesn't accrue real interest)", valueAfter / 1e6, yieldEarned);
 
         if (yieldEarned > 0) {
             uint256 apyBps = (yieldEarned * 365 * 10_000) / (depositAmount * 7);
@@ -164,7 +164,7 @@ contract GhostVaultForkV2Test is Test {
 
         vm.warp(block.timestamp + 30 days);
         (uint256 valueAfter, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log("After 30 days: value=%s, yield=%s", valueAfter / 1e6, yieldAccrued);
+        console2.log("After 30 days: value=%s, yield=%s (0 expected)", valueAfter / 1e6, yieldAccrued);
 
         _mockChainlinkPrice(int256(currentEthPrice));
         _mockVaultMaxRedeem();
@@ -244,7 +244,7 @@ contract GhostVaultForkV2Test is Test {
 
         vm.warp(block.timestamp + 14 days);
         (uint256 currentValue, uint256 yieldAccrued) = hook.getOrderValue(orderId);
-        console2.log("After 14 days: value=%s, yield=%s", currentValue / 1e6, yieldAccrued);
+        console2.log("After 14 days: value=%s, yield=%s (0 expected)", currentValue / 1e6, yieldAccrued);
 
         vm.prank(user);
         hook.cancelOrder(orderId);

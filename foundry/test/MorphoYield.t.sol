@@ -30,11 +30,6 @@ contract MorphoYieldTest is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_YieldOverTime() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  Morpho Yield Over Time (10,000 USDC)');
-        console2.log('====================================================');
-
         uint256 deposit = 10_000e6;
 
         deal(USDC_BASE_MAINNET, user, deposit);
@@ -43,14 +38,10 @@ contract MorphoYieldTest is Test {
         uint256 shares = vault.deposit(deposit, user);
         vm.stopPrank();
 
-        uint256 valueAtDeposit = vault.convertToAssets(shares);
-        console2.log('  Deposited:     $%s USDC', deposit / 1e6);
-        console2.log('  Shares:        %s', shares);
-        console2.log('  Value (t=0):   %s USDC (raw)', valueAtDeposit);
-        console2.log('');
+        console2.log("Deposited %s USDC, got %s shares", deposit / 1e6, shares);
 
         uint256[4] memory durations = [uint256(7 days), 30 days, 90 days, 365 days];
-        string[4] memory labels = ['7 days', '30 days', '90 days', '365 days'];
+        string[4] memory labels = ['7d', '30d', '90d', '365d'];
 
         uint256 snapshotId = vm.snapshotState();
 
@@ -62,16 +53,9 @@ contract MorphoYieldTest is Test {
 
             uint256 value = vault.convertToAssets(shares);
             uint256 yieldRaw = value > deposit ? value - deposit : 0;
-            uint256 apyBps = durations[i] > 0 ? (yieldRaw * 365 days * 10_000) / (deposit * durations[i]) : 0;
 
-            console2.log('  --- After %s ---', labels[i]);
-            console2.log('  Value:         %s USDC (raw)', value);
-            console2.log('  Yield:         $%s.%s', yieldRaw / 1e6, (yieldRaw % 1e6) / 1e2);
-            console2.log('  Implied APY:   %s.%s%%', apyBps / 100, apyBps % 100);
-            console2.log('');
+            console2.log("After %s: value=%s, yield=%s (0 expected)", labels[i], value / 1e6, yieldRaw);
         }
-
-        console2.log('====================================================');
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -79,50 +63,30 @@ contract MorphoYieldTest is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_DepositWarpWithdraw() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log("Morpho deposit , 30 Days , Withdraw (50k USDC)");
-        console2.log('====================================================');
-
         uint256 deposit = 50_000e6;
 
         deal(USDC_BASE_MAINNET, user, deposit);
-
         vm.startPrank(user);
         IERC20(USDC_BASE_MAINNET).approve(METAMORPHO_VAULT_BASE_MAINNET, deposit);
         uint256 shares = vault.deposit(deposit, user);
         vm.stopPrank();
 
-        uint256 userBalanceAfterDeposit = IERC20(USDC_BASE_MAINNET).balanceOf(user);
-        console2.log('  Deposited:         $%s USDC', deposit / 1e6);
-        console2.log('  Shares received:   %s', shares);
-        console2.log('  USDC left:         %s', userBalanceAfterDeposit / 1e6);
+        console2.log("Deposited %s USDC, got %s shares", deposit / 1e6, shares);
 
         vm.warp(block.timestamp + 30 days);
 
-        uint256 valueBeforeRedeem = vault.convertToAssets(shares);
-        uint256 expectedYield = valueBeforeRedeem > deposit ? valueBeforeRedeem - deposit : 0;
-        console2.log('');
-        console2.log('  After 30 days:');
-        console2.log('  Share value:       %s USDC (raw)', valueBeforeRedeem);
-        console2.log('  Expected yield:    $%s.%s', expectedYield / 1e6, (expectedYield % 1e6) / 1e2);
+        uint256 valueAfter = vault.convertToAssets(shares);
+        uint256 yieldRaw = valueAfter > deposit ? valueAfter - deposit : 0;
+        console2.log("After 30d: value=%s, yield=%s (0 expected)", valueAfter / 1e6, yieldRaw);
 
         _mockVaultMaxRedeem();
 
         vm.prank(user);
         uint256 assetsReturned = vault.redeem(shares, user, user);
 
-        uint256 finalBalance = IERC20(USDC_BASE_MAINNET).balanceOf(user);
-        uint256 profit = assetsReturned > deposit ? assetsReturned - deposit : 0;
+        console2.log("Redeemed: returned=%s USDC", assetsReturned / 1e6);
 
-        console2.log('');
-        console2.log('  Withdrawal Results:');
-        console2.log('  Assets returned:   %s USDC (raw)', assetsReturned);
-        console2.log('  Profit:            $%s.%s', profit / 1e6, (profit % 1e6) / 1e2);
-        console2.log('  Final USDC bal:    %s USDC (raw)', finalBalance);
-
-        assertApproxEqAbs(assetsReturned, deposit, 1, 'Should return at least principal (1 wei ERC-4626 rounding)');
-        console2.log('====================================================');
+        assertApproxEqAbs(assetsReturned, deposit, 1, 'Should return at least principal');
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -130,52 +94,35 @@ contract MorphoYieldTest is Test {
     // ─────────────────────────────────────────────────────────────
 
     function test_StaggeredDeposits() public {
-        console2.log('');
-        console2.log('====================================================');
-        console2.log('  Staggered Deposits: 2 Users, Different Timing');
-        console2.log('====================================================');
-
         address userA = makeAddr('userA');
         address userB = makeAddr('userB');
         uint256 deposit = 10_000e6;
 
+        // User A deposits at t=0
         deal(USDC_BASE_MAINNET, userA, deposit);
         vm.startPrank(userA);
         IERC20(USDC_BASE_MAINNET).approve(METAMORPHO_VAULT_BASE_MAINNET, deposit);
         uint256 sharesA = vault.deposit(deposit, userA);
         vm.stopPrank();
-        console2.log('  User A deposits $10,000 at t=0');
+        console2.log("User A deposits 10000 USDC at t=0");
 
+        // User B deposits at t=15d
         vm.warp(block.timestamp + 15 days);
-
         deal(USDC_BASE_MAINNET, userB, deposit);
         vm.startPrank(userB);
         IERC20(USDC_BASE_MAINNET).approve(METAMORPHO_VAULT_BASE_MAINNET, deposit);
         uint256 sharesB = vault.deposit(deposit, userB);
         vm.stopPrank();
-        console2.log('  User B deposits $10,000 at t=15d');
+        console2.log("User B deposits 10000 USDC at t=15d");
 
+        // Check at t=30d
         vm.warp(block.timestamp + 15 days);
-        console2.log('  Both withdraw at t=30d');
-        console2.log('');
 
         uint256 valueA = vault.convertToAssets(sharesA);
         uint256 valueB = vault.convertToAssets(sharesB);
 
-        uint256 yieldA = valueA > deposit ? valueA - deposit : 0;
-        uint256 yieldB = valueB > deposit ? valueB - deposit : 0;
+        console2.log("At t=30d: A=%s, B=%s (both 0 yield expected)", valueA / 1e6, valueB / 1e6);
 
-        console2.log('  User A (30 days in vault):');
-        console2.log('    Value:  %s USDC (raw)', valueA);
-        console2.log('    Yield:  $%s.%s', yieldA / 1e6, (yieldA % 1e6) / 1e2);
-
-        console2.log('  User B (15 days in vault):');
-        console2.log('    Value:  %s USDC (raw)', valueB);
-        console2.log('    Yield:  $%s.%s', yieldB / 1e6, (yieldB % 1e6) / 1e2);
-
-        assertGe(valueA, valueB, 'User A value should be >= User B (longer deposit)');
-        console2.log('');
-        console2.log('  User A value >= User B as expected');
-        console2.log('====================================================');
+        assertGe(valueA, valueB, 'User A should have >= User B');
     }
 }
