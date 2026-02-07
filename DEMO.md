@@ -18,10 +18,14 @@ make demo-anvil
 # Terminal 2: Deploy contracts
 cd foundry
 make demo-mock
+# Note: Copy HOOK and ORACLE addresses for agent setup
 
 # Terminal 3: Start frontend
 cd frontend
 npm run dev
+
+# Terminal 4: (Optional) Start agent
+# See "6. Agent Demo" section below for setup
 ```
 
 Open http://localhost:3000
@@ -154,6 +158,62 @@ The mocks behave identically to the real contracts for demo purposes:
 - ERC-20 transfers (real USDC/WETH)
 - Hook logic (commit-reveal, yield tracking, solver fees)
 - Swap execution via unlock callback
+
+---
+
+## 6. Agent Demo (Automated Execution)
+
+The solver agent monitors orders and executes them when conditions are met — no manual intervention required.
+
+### Setup
+
+**Terminal 4: Agent Daemon**
+
+1. Create `agent/.env`:
+   ```bash
+   SOLVER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+   BASE_RPC_URL=http://127.0.0.1:8545
+   HOOK_ADDRESS=<from make demo-mock output>
+   ORACLE_ADDRESS=<from make demo-mock output>
+   POLL_INTERVAL_MS=3000
+   LOOKBACK_BLOCKS=100
+   ```
+
+2. Export reveal data from frontend:
+   - In frontend, click **"Export Reveal Data"** (under Agent Export)
+   - Copy the JSON
+   - Save to `agent/reveal-data.json`
+
+3. Start agent:
+   ```bash
+   cd agent
+   npm start
+   ```
+
+### Agent Demo Flow
+
+1. **Create order in frontend** (approve + commit)
+2. **Export reveal data** to `agent/reveal-data.json`
+3. Agent logs: `"Delay not elapsed"` or `"Price condition not met"`
+4. **Warp time** (for Ghost Order) or **change price** (for Yield Order)
+5. Agent detects condition met → **executes automatically**
+6. Frontend shows order executed, WETH received
+
+### Agent Logs
+
+```
+═══════════════════════════════════════════════════
+  GhostVault Solver Agent — Daemon Mode
+═══════════════════════════════════════════════════
+Hook:     0x...
+Chain:    Base (8453)
+ETH/USD: $3000 (fresh: true)
+──────────────────────────────────────────────────
+[INFO] Order #0 - Delay not elapsed (30s / 60s)
+[INFO] Order #0 - GhostOrder delay elapsed
+[EXECUTE] Order #0 - Transaction submitted: 0x...
+[EXECUTE] Order #0 - Order executed successfully
+```
 
 ---
 
