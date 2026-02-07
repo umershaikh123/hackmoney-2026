@@ -100,7 +100,7 @@ USDC := 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 WETH := 0x4200000000000000000000000000000000000006
 ANVIL_RPC := http://127.0.0.1:8545
 
-.PHONY: demo-anvil demo-setup demo-full demo
+.PHONY: demo-anvil demo-setup demo-full demo demo-mock
 
 demo-anvil:
 	@test -n "$(BASE_MAINNET_RPC)" || (echo "ERROR: BASE_MAINNET_RPC not set"; exit 1)
@@ -143,6 +143,43 @@ demo-full: demo-setup
 	@echo "  2. Follow DEMO.md for commit/execute/cancel flows"
 	@echo ""
 
+# Demo with Mock Oracle (supports YieldOrders + time warping)
+demo-mock:
+	@echo "GhostVault Demo Setup (with Mock Oracle)"
+	@echo ""
+	@echo "[1/2] Funding demo account..."
+	@cast send $(WETH) "deposit()" --value 10ether --private-key $(DEMO_PK) --rpc-url $(ANVIL_RPC) > /dev/null
+	@cast rpc anvil_setStorageAt $(USDC) $$(cast index address $(DEMO_ACCOUNT) 9) 0x000000000000000000000000000000000000000000000000000000174876E800 --rpc-url $(ANVIL_RPC) > /dev/null
+	@echo "  USDC: 100,000"
+	@echo "  WETH: 10"
+	@echo ""
+	@echo "[2/2] Deploying Hook + MockOracle + SimpleYieldVault..."
+	@DEPLOYER_PRIVATE_KEY=$(DEMO_PK) forge script script/DeployWithMocks.s.sol --rpc-url $(ANVIL_RPC) --broadcast 2>&1 | tee /tmp/deploy_mock_output.txt
+	@grep -o "HOOK: 0x[a-fA-F0-9]*" /tmp/deploy_mock_output.txt | sed 's/HOOK: //' > .hook_address
+	@grep -o "ORACLE: 0x[a-fA-F0-9]*" /tmp/deploy_mock_output.txt | sed 's/ORACLE: //' > .oracle_address
+	@grep -o "VAULT: 0x[a-fA-F0-9]*" /tmp/deploy_mock_output.txt | sed 's/VAULT: //' > .vault_address
+	@echo ""
+	@echo "[3/3] Initializing pool + adding liquidity..."
+	@HOOK_ADDRESS=$$(cat .hook_address) forge script script/InitPool.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
+	@echo ""
+	@echo "=== Mock Demo Ready ==="
+	@echo "HOOK:   $$(cat .hook_address)"
+	@echo "ORACLE: $$(cat .oracle_address)"
+	@echo "VAULT:  $$(cat .vault_address)"
+	@echo ""
+	@echo "Set env vars:"
+	@echo "  export HOOK=$$(cat .hook_address)"
+	@echo "  export ORACLE=$$(cat .oracle_address)"
+	@echo "  export USDC=$(USDC)"
+	@echo "  export WETH=$(WETH)"
+	@echo "  export PK=$(DEMO_PK)"
+	@echo "  export RPC=$(ANVIL_RPC)"
+	@echo ""
+	@echo "Change oracle price:"
+	@echo "  cast send \$$ORACLE \"setPrice(int256)\" 250000000000 --private-key \$$PK --rpc-url \$$RPC  # \$$2500"
+	@echo "  cast send \$$ORACLE \"setPrice(int256)\" 350000000000 --private-key \$$PK --rpc-url \$$RPC  # \$$3500"
+	@echo ""
+
 demo:
 	@echo ""
 	@echo "Running GhostVault Automated Demo..."
@@ -166,11 +203,11 @@ clean-logs:
 help:
 	@echo "GhostVault Makefile"
 	@echo ""
-	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: demo-full):"
+	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: choose one):"
 	@echo "  make demo-anvil   Start Anvil fork"
-	@echo "  make demo-setup   Deploy hook + fund account"
-	@echo "  make demo-full    Full setup (hook + vault + pool) - RECOMMENDED"
-	@echo "  make demo         Run automated demo (YieldOrder, GhostOrder, Cancel)"
+	@echo "  make demo-full    Real Chainlink oracle (GhostOrder only, no time warp)"
+	@echo "  make demo-mock    Mock oracle + vault (YieldOrder + time warp) - RECOMMENDED"
+	@echo "  make demo         Run automated demo script"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build        Compile contracts"

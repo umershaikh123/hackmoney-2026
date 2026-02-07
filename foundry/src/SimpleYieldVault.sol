@@ -12,11 +12,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///         Deployed on testnets (Base Sepolia) where MetaMorpho doesn't exist.
 ///
 /// @dev    How yield works:
-///         - On deposit, we record the timestamp.
-///         - On redeem/convertToAssets, we calculate elapsed time and apply APY.
-///         - The vault mints itself extra underlying tokens to cover yield payouts.
-///           (On testnet, the underlying is a mintable mock token, so this is fine.)
-///         - For simplicity, yield accrues per-share based on a global rate, not per-deposit.
+///         - Tracks a weighted-average deposit time that shifts forward with each new deposit.
+///         - Yield accrues from this weighted time, so new deposits don't get "free" past yield.
+///         - The vault needs to be pre-funded with extra tokens to cover yield payouts.
 ///
 ///         This is NOT production code. It's a hackathon demo vault.
 contract SimpleYieldVault is ERC20, IERC4626 {
@@ -28,11 +26,11 @@ contract SimpleYieldVault is ERC20, IERC4626 {
     /// @notice Simulated APY in basis points (400 = 4.00%)
     uint256 public constant APY_BPS = 400;
 
-    /// @notice Timestamp when the vault was deployed (yield accrues from here)
-    uint256 public immutable deployedAt;
-
     /// @notice Total assets deposited (principal only, before yield)
     uint256 public totalPrincipal;
+
+    /// @notice Weighted-average deposit timestamp (shifts forward with new deposits)
+    uint256 public weightedDepositTime;
 
     constructor(
         address asset_,
@@ -42,7 +40,7 @@ contract SimpleYieldVault is ERC20, IERC4626 {
     ) ERC20(name_, symbol_) {
         _asset = IERC20(asset_);
         _assetDecimals = assetDecimals_;
-        deployedAt = block.timestamp;
+        weightedDepositTime = block.timestamp;
     }
 
     // ─── ERC-4626 View Functions ────────────────────────────────
@@ -111,6 +109,16 @@ contract SimpleYieldVault is ERC20, IERC4626 {
         require(shares > 0, "zero shares");
 
         _asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        // Update weighted-average deposit time before adding new principal
+        // newWeightedTime = (oldPrincipal * oldWeightedTime + newAssets * now) / (oldPrincipal + newAssets)
+        if (totalPrincipal > 0) {
+            weightedDepositTime = (totalPrincipal * weightedDepositTime + assets * block.timestamp)
+                / (totalPrincipal + assets);
+        } else {
+            weightedDepositTime = block.timestamp;
+        }
+
         totalPrincipal += assets;
         _mint(receiver, shares);
 
@@ -121,6 +129,15 @@ contract SimpleYieldVault is ERC20, IERC4626 {
         assets = previewMint(shares);
 
         _asset.safeTransferFrom(msg.sender, address(this), assets);
+
+        // Update weighted-average deposit time
+        if (totalPrincipal > 0) {
+            weightedDepositTime = (totalPrincipal * weightedDepositTime + assets * block.timestamp)
+                / (totalPrincipal + assets);
+        } else {
+            weightedDepositTime = block.timestamp;
+        }
+
         totalPrincipal += assets;
         _mint(receiver, shares);
 
@@ -176,9 +193,10 @@ contract SimpleYieldVault is ERC20, IERC4626 {
 
     // ─── Internal ───────────────────────────────────────────────
 
-    /// @dev Calculate accrued yield based on elapsed time and APY
+    /// @dev Calculate accrued yield based on elapsed time from weighted deposit time
     function _accruedYield() internal view returns (uint256) {
-        uint256 elapsed = block.timestamp - deployedAt;
+        if (block.timestamp <= weightedDepositTime) return 0;
+        uint256 elapsed = block.timestamp - weightedDepositTime;
         // yield = principal * APY_BPS / 10000 * elapsed / 365 days
         return (totalPrincipal * APY_BPS * elapsed) / (10_000 * 365 days);
     }
