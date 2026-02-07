@@ -1,15 +1,35 @@
-/target
-/out
-/cache
-/coverage
-/report
-lcov.info
-.DS_Store
+# Dependencies
+node_modules/
+
+# Environment files
 .env
-.vscode
-.password
-
-broadcast/*/31337
-deployments/**/31337.*
-
 .env.local
+.env*.local
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+
+# Foundry
+cache/
+broadcast/
+
+# Logs
+*.log
+test-logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temp files
+*.tmp
+*.temp
