@@ -197,13 +197,13 @@ hackmoney-2026/
 
 **Current (Hackathon MVP)**: Users share reveal data with a trusted solver agent. The agent is economically incentivized (earns fees) to execute honestly.
 
-**Future (Roadmap)**: Agent registry with staking. Agents post collateral, get slashed for privacy violations or failed execution. Reveal data encrypted and stored on IPFS. See [PRIVACY_ROADMAP.md](PRIVACY_ROADMAP.md) for the full decentralization path.
+**Future (Roadmap)**: Agent registry with staking. Agents post collateral, get slashed for privacy violations or failed execution. See [FUTURE.md](FUTURE.md) for where we go from here.
 
 ---
 
 ## Links
 
-- [Privacy Roadmap](PRIVACY_ROADMAP.md) — Future decentralization plans
+- [Future Steps](FUTURE.md) — Where we go from here
 - [Agent Documentation](agent/README.md) — How the solver works
 - [Contract Documentation](foundry/README.md) — Technical details
 
