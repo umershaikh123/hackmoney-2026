@@ -1,20 +1,18 @@
 import { http, createConfig } from "wagmi"
 import { defineChain } from "viem"
-import { getDefaultConfig } from "@rainbow-me/rainbowkit"
 
 import { connectorsForWallets } from "@rainbow-me/rainbowkit"
 import {
   rainbowWallet,
-  walletConnectWallet,
   injectedWallet,
   safeWallet,
   rabbyWallet,
   metaMaskWallet,
 } from "@rainbow-me/rainbowkit/wallets"
-// Custom Anvil chain — forked from Base mainnet but with unique chain ID
+
 const anvilBaseFork = defineChain({
   id: 31337,
-  name: "Anvil Base Fork",
+  name: "Anvil (Base Fork)",
   nativeCurrency: {
     name: "Ether",
     symbol: "ETH",
@@ -22,13 +20,13 @@ const anvilBaseFork = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["http://127.0.0.1:8545"],
+      http: [process.env.NEXT_PUBLIC_ANVIL_RPC ?? "http://127.0.0.1:8545"],
     },
   },
   testnet: true,
 })
 
-const Connectors = connectorsForWallets(
+const connectors = connectorsForWallets(
   [
     {
       groupName: "Recommended",
@@ -49,11 +47,11 @@ const Connectors = connectorsForWallets(
 
 export const config = createConfig({
   chains: [anvilBaseFork],
-
-  connectors: Connectors,
+  connectors,
   ssr: true,
-
   transports: {
-    [anvilBaseFork.id]: http("http://127.0.0.1:8545"),
+    [anvilBaseFork.id]: http(
+      process.env.NEXT_PUBLIC_ANVIL_RPC ?? "http://127.0.0.1:8545",
+    ),
   },
 })

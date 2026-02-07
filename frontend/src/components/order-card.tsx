@@ -1,17 +1,16 @@
-"use client";
+"use client"
 
-import { formatUnits } from "viem";
-import { useAccount } from "wagmi";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { formatUnits } from "viem"
+import { useAccount } from "wagmi"
+import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useGetOrder, useGetOrderValue, useCancelOrder } from "@/hooks/use-ghost-vault";
+} from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useGetOrder, useGetOrderValue } from "@/hooks/use-ghost-vault"
 import {
   ORDER_TYPE_LABELS,
   ORDER_STATUS_LABELS,
@@ -38,12 +37,11 @@ const STATUS_VARIANT: Record<number, "default" | "secondary" | "outline"> = {
 };
 
 export function OrderCard({ orderId }: { orderId: bigint }) {
-  const { address } = useAccount();
+  const { address } = useAccount()
   // getOrder returns: [owner, orderType, status, tokenIn, amountIn, vaultShares, intentHash, createdAt, minDelay]
-  const { data: order, isLoading: orderLoading } = useGetOrder(orderId);
+  const { data: order, isLoading: orderLoading } = useGetOrder(orderId)
   // getOrderValue returns: [currentValue, yieldAccrued]
-  const { data: value, isLoading: valueLoading } = useGetOrderValue(orderId);
-  const { cancelOrder, isPending: cancelling } = useCancelOrder();
+  const { data: value, isLoading: valueLoading } = useGetOrderValue(orderId)
 
   if (orderLoading) {
     return (
@@ -141,18 +139,7 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
           ) : null}
         </div>
 
-        {isActive ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="mt-2 w-full"
-            disabled={cancelling}
-            onClick={() => cancelOrder(orderId)}
-          >
-            {cancelling ? "Cancelling..." : "Cancel Order"}
-          </Button>
-        ) : null}
       </CardContent>
     </Card>
-  );
+  )
 }

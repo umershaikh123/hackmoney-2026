@@ -1,8 +1,7 @@
-"use client";
+"use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CommitOrderForm } from "@/components/commit-order-form";
-import { OrderList } from "@/components/order-list";
+import { CastCommands } from "@/components/cast-commands"
+import { OrderList } from "@/components/order-list"
 
 export function Dashboard() {
   return (
@@ -10,11 +9,11 @@ export function Dashboard() {
       {/* Hero */}
       <div className="mb-8 space-y-2 text-center">
         <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          Privacy-Preserving Limit Orders
+          GhostVault Protocol Demo
         </h2>
         <p className="text-muted-foreground">
-          Deposit into MetaMorpho vaults, earn yield while you wait, and execute
-          via Uniswap v4 hooks when your target price hits.
+          Run cast commands in terminal, view orders below. Funds earn yield in
+          MetaMorpho while waiting for execution.
         </p>
       </div>
 
@@ -34,29 +33,26 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="commit" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="commit">Commit Order</TabsTrigger>
-          <TabsTrigger value="orders">My Orders</TabsTrigger>
-        </TabsList>
-        <TabsContent value="commit" className="mt-4">
-          <CommitOrderForm />
-        </TabsContent>
-        <TabsContent value="orders" className="mt-4">
-          <OrderList />
-        </TabsContent>
-      </Tabs>
+      {/* Cast Commands (Input) */}
+      <div className="mb-8">
+        <CastCommands />
+      </div>
+
+      {/* Orders (Output) */}
+      <div>
+        <h3 className="mb-4 text-lg font-semibold text-foreground">
+          Orders (Read from Chain)
+        </h3>
+        <OrderList />
+      </div>
 
       {/* Footer */}
       <div className="mt-12 text-center text-xs text-muted-foreground">
-        <p>
-          GhostVault Protocol — ETH Global Hack Money 2026
-        </p>
+        <p>GhostVault Protocol — ETH Global Hack Money 2026</p>
         <p className="mt-1">
           Uniswap v4 Hooks &middot; MetaMorpho Vaults &middot; Chainlink Oracles
         </p>
       </div>
     </div>
-  );
+  )
 }

@@ -104,6 +104,7 @@ ANVIL_RPC := http://127.0.0.1:8545
 
 demo-anvil:
 	@test -n "$(BASE_MAINNET_RPC)" || (echo "ERROR: BASE_MAINNET_RPC not set"; exit 1)
+	@echo "Starting Anvil fork of Base mainnet (chain ID 31337)..."
 	anvil --fork-url $(BASE_MAINNET_RPC) --chain-id 31337
 
 demo-setup:
@@ -114,7 +115,11 @@ demo-setup:
 	@echo "[2/3] Setting USDC balance..."
 	@cast rpc anvil_setStorageAt $(USDC) $$(cast index address $(DEMO_ACCOUNT) 9) 0x000000000000000000000000000000000000000000000000000000174876E800 --rpc-url $(ANVIL_RPC) > /dev/null
 	@echo "[3/3] Deploying GhostVaultHookV2..."
-	@source ~/.bashrc && DEPLOYER_PRIVATE_KEY=$(DEMO_PK) forge script script/DeployV2.s.sol --rpc-url $(ANVIL_RPC) --broadcast
+	@source ~/.bashrc && DEPLOYER_PRIVATE_KEY=$(DEMO_PK) forge script script/DeployV2.s.sol --rpc-url $(ANVIL_RPC) --broadcast 2>&1 | tee /tmp/deploy_output.txt
+	@grep -o "V2 Hook deployed at: 0x[a-fA-F0-9]*" /tmp/deploy_output.txt | sed 's/V2 Hook deployed at: //' > .hook_address
+	@echo ""
+	@echo "Deployed hook address saved to .hook_address"
+	@cat .hook_address
 	@echo ""
 	@echo "Balances:"
 	@echo "  USDC: $$(cast call $(USDC) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
@@ -125,8 +130,9 @@ demo-setup:
 demo:
 	@echo ""
 	@echo "Running GhostVault Automated Demo..."
+	@test -f .hook_address && echo "Using hook: $$(cat .hook_address)" || echo "Warning: .hook_address not found, using default"
 	@echo ""
-	forge test --match-path script/DemoV2.t.sol --fork-url $(ANVIL_RPC) -vv
+	@HOOK_ADDRESS=$$(cat .hook_address 2>/dev/null || echo "") forge test --match-path script/DemoV2.t.sol --fork-url $(ANVIL_RPC) -vv
 
 # ─────────────────────────────────────────────────────────────
 # Cleanup

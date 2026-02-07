@@ -1,6 +1,11 @@
 "use client"
 
-import { useReadContract, useWriteContract, useAccount, useWaitForTransactionReceipt } from "wagmi"
+import {
+  useReadContract,
+  useWriteContract,
+  useAccount,
+  useWaitForTransactionReceipt,
+} from "wagmi"
 import { ghostVaultAbi, erc20Abi } from "@/lib/abi"
 import { GHOST_VAULT_ADDRESS, DEFAULT_POOL_KEY } from "@/lib/contracts"
 import type { Address } from "viem"
@@ -125,7 +130,21 @@ export function useTokenBalance(token: Address) {
 }
 
 export function useApprove() {
-  const { writeContract, data: hash, isPending, isSuccess, isError, error, reset } = useWriteContract()
+  const {
+    writeContract,
+    data: hash,
+    isPending,
+    isSuccess: isSent,
+    isError,
+    error,
+    reset,
+  } = useWriteContract()
+
+  // Wait for the tx to be mined — this is what was broken with chain ID mismatch
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash,
+    })
 
   function approve(token: Address, spender: Address, amount: bigint) {
     writeContract({
@@ -139,8 +158,10 @@ export function useApprove() {
   return {
     approve,
     hash,
-    isPending,
-    isSuccess,
+    isPending, // tx is being signed in wallet
+    isConfirming, // tx sent, waiting for receipt
+    isSuccess: isConfirmed, // tx mined and confirmed
+    isSent, // writeContract succeeded (tx in mempool)
     isError,
     error,
     reset,

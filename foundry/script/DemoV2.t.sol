@@ -45,7 +45,9 @@ contract DemoV2 is Test {
     uint256 ordersCancelled;
 
     function setUp() public {
-        address hookAddress = vm.envOr("HOOK_ADDRESS", address(0x3EB83B5592Fa61C8Db81945294A854D37badc0C0));
+        // Default address from `make demo-setup` deployment
+        // If different, set HOOK_ADDRESS env var: HOOK_ADDRESS=0x... make demo
+        address hookAddress = vm.envOr("HOOK_ADDRESS", address(0xE1b3087fDe44898dE9DA9a7158E7607B7d4f00C0));
         hook = GhostVaultHookV2(hookAddress);
 
         poolKey = PoolKey({
