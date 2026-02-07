@@ -1,7 +1,7 @@
 "use client"
 
 import { formatUnits } from "viem"
-import { useAccount } from "wagmi"
+import { useAccount, useBlock } from "wagmi"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -31,6 +31,25 @@ function tokenDecimals(address: string): number {
   return address.toLowerCase() === USDC.toLowerCase() ? 6 : 18;
 }
 
+// Format elapsed time in human-readable format
+function formatElapsedTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  }
+  if (seconds < 604800) {
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`
+  }
+  const weeks = Math.floor(seconds / 604800)
+  const days = Math.floor((seconds % 604800) / 86400)
+  return days > 0 ? `${weeks}w ${days}d` : `${weeks}w`
+}
+
 const STATUS_VARIANT: Record<number, "default" | "secondary" | "outline"> = {
   [OrderStatus.ACTIVE]: "default",
   [OrderStatus.EXECUTED]: "secondary",
@@ -45,6 +64,8 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
   const { data: value, isLoading: valueLoading } = useGetOrderValue(orderId)
   // Get cached event data for executed/cancelled orders
   const orderResult = useOrderResult(orderId)
+  // Get current block for timestamp (reflects Anvil time warps)
+  const { data: block } = useBlock({ watch: true })
 
   if (orderLoading) {
     return (
@@ -89,6 +110,11 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
   const formattedDate = createdAt > 0n
     ? createdDate.toLocaleDateString()
     : "—";
+
+  // Calculate elapsed time using block timestamp (reflects Anvil time warps)
+  const blockTimestamp = block?.timestamp ? Number(block.timestamp) : Math.floor(Date.now() / 1000);
+  const elapsedSeconds = createdAt > 0n ? blockTimestamp - Number(createdAt) : 0;
+  const timeActive = elapsedSeconds > 0 ? formatElapsedTime(elapsedSeconds) : "—";
 
   return (
     <Card className={isActive ? "" : "opacity-50"}>
@@ -136,6 +162,10 @@ export function OrderCard({ orderId }: { orderId: bigint }) {
 
           <span className="text-muted-foreground">Created</span>
           <span className="text-right">{formattedDate}</span>
+
+          {/* Show time active for all orders */}
+          <span className="text-muted-foreground">Time Active</span>
+          <span className="text-right font-mono text-amber-500">{timeActive}</span>
 
           {minDelay > 0n ? (
             <>
