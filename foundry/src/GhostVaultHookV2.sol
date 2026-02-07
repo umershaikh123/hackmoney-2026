@@ -107,7 +107,9 @@ contract GhostVaultHookV2 is BaseHook, IUnlockCallback, ReentrancyGuardTransient
     // solhint-disable-next-line var-name-mixedcase
     address public immutable OWNER;
 
-    uint256 public constant SOLVER_FEE_BPS = 100;
+    uint256 public constant GAS_REIMBURSEMENT = 100_000;  // 0.1 USDC (6 decimals)
+    uint256 public constant MIN_YIELD_FOR_REIMBURSEMENT = 100_000;  // 0.1 USDC
+    uint256 public constant SOLVER_FEE_BPS = 100;  // 1%
     uint256 public constant MAX_ORACLE_STALENESS = 3600;
 
     // ─────────────────────────────────────────────────────────────
@@ -558,7 +560,15 @@ contract GhostVaultHookV2 is BaseHook, IUnlockCallback, ReentrancyGuardTransient
         uint256 totalWithdrawn = vault.redeem(sharesToRedeem, address(this), address(this));
         yieldEarned = totalWithdrawn > order.amountIn ? totalWithdrawn - order.amountIn : 0;
 
-        solverFee = (yieldEarned * SOLVER_FEE_BPS) / 10_000;
+        // Solver fee = gas reimbursement + 1% profit share (capped at total yield)
+        uint256 profitShare = (yieldEarned * SOLVER_FEE_BPS) / 10_000;
+        if (yieldEarned >= MIN_YIELD_FOR_REIMBURSEMENT) {
+            uint256 targetFee = GAS_REIMBURSEMENT + profitShare;
+            solverFee = yieldEarned >= targetFee ? targetFee : yieldEarned;
+        } else {
+            // Below threshold: only profit share, no reimbursement
+            solverFee = profitShare;
+        }
         amountToSwap = totalWithdrawn - solverFee;
     }
 
