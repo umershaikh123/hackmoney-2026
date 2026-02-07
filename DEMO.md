@@ -57,6 +57,15 @@ Click "Connect Wallet" and select the imported account.
 - **Cancel** — Returns principal + yield (no swap)
 - **Execute** — Triggers swap when conditions are met
 
+### 3b. Batch Execution (Privacy Feature)
+
+1. Click **Batch Execute** button to enter batch mode
+2. Select 2+ active orders using checkboxes
+3. Click **Execute N Orders** button
+4. All selected orders execute in a single aggregated swap
+
+**Privacy benefit:** On-chain observers see one large swap instead of individual orders, hiding individual order sizes.
+
 ### 4. Oracle Controls
 
 **Set Oracle Price:**

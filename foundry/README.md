@@ -4,6 +4,14 @@ Uniswap v4 Hook that earns yield on idle order capital.
 
 When you place a limit order, your capital sits idle waiting for the price target. GhostVault routes that capital to an ERC-4626 vault (MetaMorpho) where it earns ~4% APY. When conditions are met, the order executes and you keep the yield.
 
+## Features
+
+- **Yield on idle capital** — Funds earn ~4% APY in MetaMorpho vault while waiting
+- **Price-triggered orders** — YieldOrder executes when Chainlink price hits target
+- **Time-delayed privacy** — GhostOrder uses commit-reveal pattern to hide intent
+- **Batch execution** — Aggregate multiple orders into single swap for privacy
+- **Solver incentives** — 1% of yield goes to solver who executes orders
+
 ## Order Types
 
 **YieldOrder** — Price-triggered. Executes when Chainlink price hits target. Earns yield while waiting.
@@ -23,15 +31,28 @@ make test-v2-fork    # Fork tests (requires BASE_MAINNET_RPC)
 
 ## Demo
 
-See [../DEMO.md](../DEMO.md) for the full demo guide.
+See [../DEMO.md](../DEMO.md) for the full interactive demo guide.
 
 ```bash
-# Terminal 1
+# Terminal 1: Anvil fork
 make demo-anvil
 
-# Terminal 2
+# Terminal 2: Deploy contracts
 make demo-mock
+
+# Terminal 3: Frontend
+cd ../frontend && npm run dev
 ```
+
+Open http://localhost:3000 — fully interactive with wagmi (no terminal commands needed).
+
+## Frontend Features
+
+- **Create Orders** — Approve + Commit via wallet
+- **Manage Orders** — Cancel or Execute with one click
+- **Batch Execute** — Select 2+ orders for privacy-preserving aggregated swap
+- **Oracle Controls** — Set ETH/USD price with presets
+- **Time Warp** — Advance block time to accrue yield
 
 ## Test Commands
 
@@ -45,13 +66,13 @@ make demo-mock
 
 ```
 src/
-├── GhostVaultHookV2.sol    # Main hook contract
+├── GhostVaultHookV2.sol    # Main hook contract (V2 with batch + afterSwap)
 ├── SimpleYieldVault.sol    # Demo vault (4% APY)
 └── MockChainlinkOracle.sol # Demo oracle (controllable price)
 
 test/
-├── GhostVaultHookV2.t.sol  # Local unit tests
-└── GhostVaultForkV2.t.sol  # Fork tests (real contracts)
+├── GhostVaultHookV2.t.sol  # Local unit tests (14 tests)
+└── GhostVaultForkV2.t.sol  # Fork tests (7 tests, real contracts)
 
 script/
 ├── DeployWithMocks.s.sol   # Demo deployment
