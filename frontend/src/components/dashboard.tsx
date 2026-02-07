@@ -1,19 +1,21 @@
 "use client"
 
-import { CastCommands } from "@/components/cast-commands"
+import { CreateOrderCard } from "@/components/create-order-card"
+import { OracleControls } from "@/components/oracle-controls"
+import { TimeWarpControls } from "@/components/time-warp-controls"
 import { OrderList } from "@/components/order-list"
 
 export function Dashboard() {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-6 py-8">
       {/* Hero */}
       <div className="mb-8 space-y-2 text-center">
         <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          GhostVault Protocol Demo
+          GhostVault Protocol
         </h2>
         <p className="text-muted-foreground">
-          Run cast commands in terminal, view orders below. Funds earn yield in
-          MetaMorpho while waiting for execution.
+          Privacy-preserving limit orders with yield. Funds earn in MetaMorpho
+          while waiting.
         </p>
       </div>
 
@@ -33,15 +35,22 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Cast Commands (Input) */}
-      <div className="mb-8">
-        <CastCommands />
+      {/* Main Grid: Create Order + Controls */}
+      <div className="mb-8 grid gap-6 lg:grid-cols-2">
+        {/* Left: Create Order */}
+        <CreateOrderCard />
+
+        {/* Right: Oracle + Time Controls */}
+        <div className="space-y-6">
+          <OracleControls />
+          <TimeWarpControls />
+        </div>
       </div>
 
-      {/* Orders (Output) */}
+      {/* Orders List */}
       <div>
         <h3 className="mb-4 text-lg font-semibold text-foreground">
-          Orders (Read from Chain)
+          Your Orders
         </h3>
         <OrderList />
       </div>
@@ -50,7 +59,7 @@ export function Dashboard() {
       <div className="mt-12 text-center text-xs text-muted-foreground">
         <p>GhostVault Protocol — ETH Global Hack Money 2026</p>
         <p className="mt-1">
-          Uniswap v4 Hooks &middot; MetaMorpho Vaults &middot; Chainlink Oracles
+          Uniswap v4 Hooks · MetaMorpho Vaults · Chainlink Oracles
         </p>
       </div>
     </div>

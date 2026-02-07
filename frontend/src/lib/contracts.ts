@@ -5,6 +5,11 @@ export const GHOST_VAULT_ADDRESS: Address =
   (process.env.NEXT_PUBLIC_GHOST_VAULT_ADDRESS as Address) ??
   "0x0000000000000000000000000000000000000000";
 
+// MockChainlinkOracle address — set via env after demo-mock deploy
+export const ORACLE_ADDRESS: Address =
+  (process.env.NEXT_PUBLIC_ORACLE_ADDRESS as Address) ??
+  "0x0000000000000000000000000000000000000000";
+
 // Base mainnet token addresses (available on Anvil fork)
 export const USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const WETH: Address = "0x4200000000000000000000000000000000000006";
