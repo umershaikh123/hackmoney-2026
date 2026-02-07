@@ -14,6 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { GHOST_VAULT_ADDRESS, USDC, WETH } from "@/lib/contracts"
 
 type OrderType = "yield" | "ghost"
@@ -301,15 +308,15 @@ export function CastCommands() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="execZeroForOne">zeroForOne</Label>
-              <select
-                id="execZeroForOne"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={execZeroForOne}
-                onChange={e => setExecZeroForOne(e.target.value)}
-              >
-                <option value="false">false</option>
-                <option value="true">true</option>
-              </select>
+              <Select value={execZeroForOne} onValueChange={setExecZeroForOne}>
+                <SelectTrigger id="execZeroForOne" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">false</SelectItem>
+                  <SelectItem value="true">true</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2 col-span-2 sm:col-span-1">
               <Label htmlFor="execSalt">salt</Label>
