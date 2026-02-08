@@ -205,6 +205,14 @@ hackmoney-2026/
 
 ---
 
+## Demo Limitations
+
+**Slippage Protection**: The contract supports `minAmountOut` for slippage protection, but the demo frontend hardcodes it to 0. For GhostOrders with time delays, the price can move during the wait period. In production, users would set their own slippage tolerance or the frontend would auto-calculate based on current price.
+
+**Mock Contracts**: The demo uses `MockChainlinkOracle` and `SimpleYieldVault` because real Chainlink freezes after Anvil time-warp and real MetaMorpho has liquidity constraints. Fork tests prove compatibility with real contracts.
+
+---
+
 ## Links
 
 - [Future Steps](FUTURE.md) — Where we go from here
