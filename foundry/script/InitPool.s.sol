@@ -62,8 +62,8 @@ contract InitPool is Script {
         IERC20(WETH_BASE_MAINNET).approve(address(liquidityHelper), type(uint256).max);
         IERC20(USDC_BASE_MAINNET).approve(address(liquidityHelper), type(uint256).max);
 
-        // 4. Add liquidity (5e13 = smaller amount that fits demo account balance)
-        liquidityHelper.addLiquidity(poolKey, 5e13, -887_220, 887_220);
+        // 4. Add liquidity (5e14 = 10x more for better swap rates, fits 10 WETH + 100k USDC)
+        liquidityHelper.addLiquidity(poolKey, 5e14, -887_220, 887_220);
         console2.log('Liquidity added');
 
         vm.stopBroadcast();
