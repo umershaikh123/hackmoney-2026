@@ -23,12 +23,14 @@ On-chain limit orders have two issues:
 GhostVault is a Uniswap v4 Hook with two order types:
 
 **YieldOrder** — Price-triggered limit order
+
 - Deposit USDC, set target price
 - Funds route to MetaMorpho vault, earn ~4% APY
 - When price hits target, agent executes swap
 - You get WETH plus the yield you earned
 
 **GhostOrder** — Time-delayed privacy swap
+
 - Deposit USDC, set delay (1 hour, 1 day, etc.)
 - Only a hash of your intent is stored on-chain
 - After delay, agent reveals and executes
@@ -63,11 +65,11 @@ The hash is `keccak256(targetPrice, direction, salt)`. You keep the plaintext. A
 
 ## Why Not Just Use...
 
-| Approach | What It Does | The Gap |
-|----------|--------------|---------|
-| **EulerSwap** | Yield for LPs via Euler vaults | Targets liquidity providers, not order makers |
-| **CoW Protocol** | MEV protection via batch auctions | No yield on waiting capital |
-| **Traditional limit orders** | Basic price triggers | Both: no yield, visible intent |
+| Approach                     | What It Does                      | The Gap                                       |
+| ---------------------------- | --------------------------------- | --------------------------------------------- |
+| **EulerSwap**                | Yield for LPs via Euler vaults    | Targets liquidity providers, not order makers |
+| **CoW Protocol**             | MEV protection via batch auctions | No yield on waiting capital                   |
+| **Traditional limit orders** | Basic price triggers              | Both: no yield, visible intent                |
 
 GhostVault is the first to combine yield generation with intent hiding for limit orders on Uniswap v4.
 
@@ -97,15 +99,15 @@ GhostVault is the first to combine yield generation with intent hiding for limit
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Hook | Solidity 0.8.26, Uniswap v4, OpenZeppelin |
-| Yield | MetaMorpho ERC-4626 vault (Gauntlet USDC Prime) |
-| Oracle | Chainlink ETH/USD price feed |
-| Agent | TypeScript, viem, Node.js |
-| Payments | x402 protocol (HTTP 402 agent marketplace) |
-| Frontend | Next.js 16, wagmi v3, RainbowKit |
-| Testing | Foundry, 35 tests (22 local + 13 fork) |
+| Layer    | Technology                                      |
+| -------- | ----------------------------------------------- |
+| Hook     | Solidity 0.8.26, Uniswap v4, OpenZeppelin       |
+| Yield    | MetaMorpho ERC-4626 vault (Gauntlet USDC Prime) |
+| Oracle   | Chainlink ETH/USD price feed                    |
+| Agent    | TypeScript, viem, Node.js                       |
+| Payments | x402 protocol (HTTP 402 agent marketplace)      |
+| Frontend | Next.js 16, wagmi v3, RainbowKit                |
+| Testing  | Foundry, 35 tests (22 local + 13 fork)          |
 
 ---
 
@@ -116,6 +118,7 @@ GhostVault implements intent-based trading: users express what they want (commit
 ### Agentic Finance ($5,000)
 
 We built an autonomous solver agent that:
+
 - Monitors on-chain orders via event subscription
 - Checks execution conditions (price from Chainlink, time delays)
 - Calculates profitability (solver fee vs gas cost)
@@ -127,6 +130,7 @@ The agent makes independent decisions using on-chain state. It interacts directl
 ### Privacy DeFi ($5,000)
 
 We implemented:
+
 - **Commit-reveal pattern**: Trade intent hidden until execution
 - **Temporal separation**: GhostOrders enforce unpredictable execution timing
 - **Batch aggregation**: Multiple orders combined into single swap, hiding individual sizes
@@ -136,38 +140,97 @@ These mechanisms reduce information leakage and protect against MEV extraction.
 
 ---
 
-## Quick Start
+## Getting Started
+
+### Prerequisites
+
+| Tool                | Version | Installation                                                                                           |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| **Foundry**         | Latest  | `curl -L https://foundry.paradigm.xyz \| bash && foundryup`                                            |
+| **Make**            | 3.8+    | macOS: `xcode-select --install` / Linux: `apt install build-essential` / Windows: `choco install make` |
+| **Node.js**         | 20+     | [nodejs.org](https://nodejs.org/) or `nvm install 20`                                                  |
+| **pnpm** (optional) | 8+      | `npm install -g pnpm`                                                                                  |
+
+### Environment Setup
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/umershaikh123/hackmoney-2026.git
+   cd hackmoney-2026
+   ```
+
+2. **Configure RPC** (required for Anvil fork)
+
+   ```bash
+   cd foundry
+   cp .env.example .env.local
+   # Edit .env.local and add your Base mainnet RPC:
+   # BASE_MAINNET_RPC=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+   ```
+
+3. **Install dependencies**
+
+   ```bash
+   # Foundry dependencies
+   cd foundry
+   make install
+
+   # Frontend
+   cd ../frontend
+   npm install
+
+   # Agent (optional)
+   cd ../agent
+   npm install
+   ```
+
+### Quick Start (Demo)
+
+Open **3 terminals**:
 
 ```bash
 # Terminal 1: Start Anvil fork of Base mainnet
 cd foundry && make demo-anvil
 
-# Terminal 2: Deploy contracts
+# Terminal 2: Deploy contracts (wait for Anvil to start first)
 cd foundry && make demo-mock
 
 # Terminal 3: Start frontend
 cd frontend && npm run dev
-
-# Open http://localhost:3000
-# Import Anvil test account (first private key from Anvil output)
 ```
+
+4. Open http://localhost:3000
+5. Import Anvil test account into MetaMask:
+   - Private key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+   - This account has 10 WETH + 100,000 USDC on the fork
 
 ### Run Tests
 
 ```bash
 cd foundry
-make test-v2-mock    # 14 local tests
-make test-v2-fork    # 7 fork tests (needs BASE_MAINNET_RPC)
+
+# Local tests (no RPC needed)
+make test-v2-mock    # 14 tests
+
+# Fork tests (requires BASE_MAINNET_RPC in .env.local)
+make test-v2-fork    # 7 tests
+
+# All tests
+make test-all
 ```
 
-### Start Agent
+### Start Agent (Optional)
 
 ```bash
 cd agent
-cp .env.example .env  # Configure RPC and private key
-npm install
-npm start             # Daemon mode
-npm run demo          # One-shot demo
+cp .env.example .env
+
+# Edit .env:
+# SOLVER_PRIVATE_KEY=0x...  (Anvil account #2)
+# RPC_URL=http://127.0.0.1:8545
+
+npm run start             # Daemon mode (watches for orders)
 ```
 
 ---

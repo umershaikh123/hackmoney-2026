@@ -28,6 +28,24 @@ $(LOG_DIR):
 	mkdir -p $(LOG_DIR)
 
 # ─────────────────────────────────────────────────────────────
+# Install Dependencies
+# ─────────────────────────────────────────────────────────────
+
+.PHONY: install clean-lib
+
+install:
+	@echo "Installing Foundry dependencies..."
+	forge install foundry-rs/forge-std --no-commit
+	forge install uniswap/v4-periphery --no-commit
+	forge install OpenZeppelin/openzeppelin-contracts --no-commit
+	forge install smartcontractkit/foundry-chainlink-toolkit --no-commit
+	@echo ""
+	@echo "Dependencies installed successfully!"
+
+clean-lib:
+	rm -rf lib/
+
+# ─────────────────────────────────────────────────────────────
 # Build
 # ─────────────────────────────────────────────────────────────
 
@@ -203,14 +221,16 @@ clean-logs:
 help:
 	@echo "GhostVault Makefile"
 	@echo ""
+	@echo "Setup:"
+	@echo "  make install      Install all Foundry dependencies"
+	@echo "  make build        Compile contracts"
+	@echo "  make clean-lib    Remove lib/ folder"
+	@echo ""
 	@echo "Demo (Terminal 1: demo-anvil, Terminal 2: choose one):"
 	@echo "  make demo-anvil   Start Anvil fork"
 	@echo "  make demo-full    Real Chainlink oracle (GhostOrder only, no time warp)"
 	@echo "  make demo-mock    Mock oracle + vault (YieldOrder + time warp) - RECOMMENDED"
 	@echo "  make demo         Run automated demo script"
-	@echo ""
-	@echo "Build:"
-	@echo "  make build        Compile contracts"
 	@echo ""
 	@echo "Tests:"
 	@echo "  make test-mock    V1 mock tests (8)"
