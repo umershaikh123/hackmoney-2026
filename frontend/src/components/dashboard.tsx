@@ -5,6 +5,7 @@ import { OracleControls } from "@/components/oracle-controls"
 import { TimeWarpControls } from "@/components/time-warp-controls"
 import { ExportRevealData } from "@/components/export-reveal-data"
 import { OrderList } from "@/components/order-list"
+import { LogsPanel } from "@/components/logs-panel"
 
 export function Dashboard() {
   return (
@@ -47,6 +48,11 @@ export function Dashboard() {
           <TimeWarpControls />
           <ExportRevealData />
         </div>
+      </div>
+
+      {/* Transaction Logs */}
+      <div className="mb-8">
+        <LogsPanel />
       </div>
 
       {/* Orders List */}

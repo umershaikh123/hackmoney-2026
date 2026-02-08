@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -34,6 +34,7 @@ import {
 } from "@/lib/contracts"
 import { useAllowance, useTokenBalance } from "@/hooks/use-ghost-vault"
 import { useRevealDataStore } from "@/stores/reveal-data-store"
+import { useLogStore } from "@/stores/log-store"
 
 const POOL_KEY = {
   currency0: WETH,
@@ -47,10 +48,13 @@ export function CreateOrderCard() {
   const { isConnected, address } = useAccount()
   const setReveal = useRevealDataStore(state => state.setReveal)
   const linkOrderId = useRevealDataStore(state => state.linkOrderId)
+  const addLog = useLogStore(state => state.addLog)
   const [orderType, setOrderType] = useState<OrderTypeName>("YIELD_ORDER")
   const [amount, setAmount] = useState("1000")
   const [targetPrice, setTargetPrice] = useState("2500")
   const [minDelay, setMinDelay] = useState("60")
+  const [showPrivacyPreview, setShowPrivacyPreview] = useState(false)
+  const [previewSalt, setPreviewSalt] = useState<`0x${string}` | null>(null)
 
   const pendingIntentHash = useRef<string | null>(null)
   const pendingOrderId = useRef<bigint | null>(null)
@@ -63,6 +67,34 @@ export function CreateOrderCard() {
 
   const parsedAmount = amount ? parseUnits(amount, 6) : 0n
   const isGhostOrder = orderType === "GHOST_ORDER"
+
+  // Generate preview salt on demand
+  const generatePreviewSalt = () => {
+    const salt = keccak256(
+      encodePacked(["uint256"], [BigInt(Date.now())]),
+    ) as `0x${string}`
+    setPreviewSalt(salt)
+    setShowPrivacyPreview(true)
+  }
+
+  // Compute preview intent hash
+  const previewIntentData = useMemo(() => {
+    if (!previewSalt) return null
+    const parsedPrice = isGhostOrder ? 0n : parseUnits(targetPrice || "0", 8)
+    const zeroForOne = false
+    const intentHash = keccak256(
+      encodeAbiParameters(
+        [{ type: "uint256" }, { type: "bool" }, { type: "bytes32" }],
+        [parsedPrice, zeroForOne, previewSalt],
+      ),
+    )
+    return {
+      salt: previewSalt,
+      targetPrice: parsedPrice,
+      zeroForOne,
+      intentHash,
+    }
+  }, [previewSalt, targetPrice, isGhostOrder])
 
   // Balances and allowances
   const { data: balance } = useTokenBalance(USDC)
@@ -105,6 +137,7 @@ export function CreateOrderCard() {
 
   const handleApprove = () => {
     if (!parsedAmount) return
+    addLog("info", `Approving ${amount} USDC...`)
     writeApprove({
       address: USDC,
       abi: erc20Abi,
@@ -112,6 +145,19 @@ export function CreateOrderCard() {
       args: [GHOST_VAULT_ADDRESS, parsedAmount],
     })
   }
+
+  // Log approve confirmation
+  useEffect(() => {
+    if (approveHash) {
+      addLog("tx", "Approve tx submitted:", approveHash)
+    }
+  }, [approveHash, addLog])
+
+  useEffect(() => {
+    if (approveConfirmed && approveHash) {
+      addLog("success", "USDC approved!", approveHash)
+    }
+  }, [approveConfirmed, approveHash, addLog])
 
   const handleCommit = () => {
     if (!parsedAmount) return
@@ -137,6 +183,10 @@ export function CreateOrderCard() {
 
     const parsedDelay = isGhostOrder ? BigInt(Number(minDelay || "0")) : 0n
 
+    const orderTypeName = isGhostOrder ? "Ghost" : "Yield"
+    addLog("info", `Committing ${orderTypeName} Order: ${amount} USDC`)
+    addLog("info", `Intent hash: ${intentHash.slice(0, 18)}...`)
+
     writeCommit({
       address: GHOST_VAULT_ADDRESS,
       abi: ghostVaultAbi,
@@ -152,6 +202,19 @@ export function CreateOrderCard() {
       ],
     })
   }
+
+  // Log commit confirmation
+  useEffect(() => {
+    if (commitHash) {
+      addLog("tx", "Commit tx submitted:", commitHash)
+    }
+  }, [commitHash, addLog])
+
+  useEffect(() => {
+    if (commitConfirmed && commitHash && pendingOrderId.current !== null) {
+      addLog("success", `Order #${pendingOrderId.current} created! Funds deposited to vault.`, commitHash)
+    }
+  }, [commitConfirmed, commitHash, addLog])
 
   // Link orderId to intentHash after commit success
   useEffect(() => {
@@ -171,6 +234,8 @@ export function CreateOrderCard() {
     resetApprove()
     resetCommit()
     refetchAllowance()
+    setPreviewSalt(null)
+    setShowPrivacyPreview(false)
   }
 
   const formattedBalance = balance ? formatUnits(balance, 6) : "0"
@@ -259,6 +324,82 @@ export function CreateOrderCard() {
             </p>
           </div>
         )}
+
+        {/* Privacy Preview - Commit-Reveal Visualization */}
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground hover:text-foreground"
+            onClick={generatePreviewSalt}
+          >
+            {showPrivacyPreview ? "Regenerate" : "Preview"} Commit-Reveal Data
+          </Button>
+
+          {showPrivacyPreview && previewIntentData && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3 text-xs">
+              {/* What goes ON-CHAIN */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <span className="font-medium text-red-400">On-Chain (Public)</span>
+                </div>
+                <div className="ml-4 space-y-1 font-mono text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>intentHash:</span>
+                    <span className="text-foreground truncate max-w-[180px]" title={previewIntentData.intentHash}>
+                      {previewIntentData.intentHash.slice(0, 10)}...{previewIntentData.intentHash.slice(-8)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>amount:</span>
+                    <span className="text-foreground">{amount} USDC</span>
+                  </div>
+                </div>
+                <p className="ml-4 text-muted-foreground italic">
+                  MEV bots see the hash but can't decode your intent
+                </p>
+              </div>
+
+              {/* What stays OFF-CHAIN */}
+              <div className="space-y-1 border-t border-border pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="font-medium text-green-400">Off-Chain (Private)</span>
+                </div>
+                <div className="ml-4 space-y-1 font-mono text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>salt:</span>
+                    <span className="text-foreground truncate max-w-[180px]" title={previewIntentData.salt}>
+                      {previewIntentData.salt.slice(0, 10)}...{previewIntentData.salt.slice(-8)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>targetPrice:</span>
+                    <span className="text-foreground">
+                      {isGhostOrder ? "0 (time-based)" : `$${targetPrice}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>zeroForOne:</span>
+                    <span className="text-foreground">false (USDC → WETH)</span>
+                  </div>
+                </div>
+                <p className="ml-4 text-muted-foreground italic">
+                  Only you and the solver agent know this data
+                </p>
+              </div>
+
+              {/* Hash Formula */}
+              <div className="border-t border-border pt-2">
+                <p className="text-center text-muted-foreground">
+                  <span className="font-mono text-primary">intentHash</span> = keccak256(targetPrice, zeroForOne, salt)
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Approval Status */}
         {isConnected && parsedAmount > 0n && (

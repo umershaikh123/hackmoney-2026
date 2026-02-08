@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   useReadContract,
   useWriteContract,
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ORACLE_ADDRESS } from "@/lib/contracts"
+import { useLogStore } from "@/stores/log-store"
 
 // MockChainlinkOracle ABI (minimal)
 const oracleAbi = [
@@ -54,6 +55,8 @@ const PRICE_PRESETS = [
 export function OracleControls() {
   const { isConnected } = useAccount()
   const [customPrice, setCustomPrice] = useState("")
+  const addLog = useLogStore(state => state.addLog)
+  const pendingPrice = useRef<string | null>(null)
 
   // Read current price
   const { data: currentPrice, refetch: refetchPrice } = useReadContract({
@@ -76,6 +79,8 @@ export function OracleControls() {
   })
 
   const handleSetPrice = (priceUsd: string) => {
+    pendingPrice.current = priceUsd
+    addLog("oracle", `Setting ETH/USD price to $${Number(priceUsd).toLocaleString()}...`)
     const priceWith8Decimals = parseUnits(priceUsd, 8)
     writeContract({
       address: ORACLE_ADDRESS,
@@ -84,6 +89,14 @@ export function OracleControls() {
       args: [priceWith8Decimals],
     })
   }
+
+  // Log price update confirmation
+  useEffect(() => {
+    if (isSuccess && hash && pendingPrice.current) {
+      addLog("oracle", `Oracle updated: ETH/USD = $${Number(pendingPrice.current).toLocaleString()}`, hash)
+      pendingPrice.current = null
+    }
+  }, [isSuccess, hash, addLog])
 
   const handleCustomPrice = () => {
     if (!customPrice) return

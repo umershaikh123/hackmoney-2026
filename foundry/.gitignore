@@ -16,6 +16,5 @@ deployments/**/31337.*
 test-logs/
 .hook_address
 
-lib
 logs
 docs

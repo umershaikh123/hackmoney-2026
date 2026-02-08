@@ -26,6 +26,7 @@ import {
   WETH,
   GHOST_VAULT_ADDRESS,
 } from "@/lib/contracts"
+import { useLogStore } from "@/stores/log-store"
 
 function tokenSymbol(address: string): string {
   const lower = address.toLowerCase()
@@ -80,6 +81,7 @@ export function OrderCard({
   const queryClient = useQueryClient()
   const getReveal = useRevealDataStore(state => state.getReveal)
   const removeOrder = useRevealDataStore(state => state.removeOrder)
+  const addLog = useLogStore(state => state.addLog)
 
   const { data: order, isLoading: orderLoading } = useGetOrder(orderId)
 
@@ -151,6 +153,32 @@ export function OrderCard({
       queryClient.invalidateQueries({ queryKey: ["readContract"] })
     }
   }, [executeSuccess, executeReverted, orderId, removeOrder, queryClient])
+
+  // Log transaction submissions
+  useEffect(() => {
+    if (cancelHash) {
+      addLog("tx", `Cancel tx submitted:`, cancelHash)
+    }
+  }, [cancelHash, addLog])
+
+  useEffect(() => {
+    if (executeHash) {
+      addLog("tx", `Execute tx submitted:`, executeHash)
+    }
+  }, [executeHash, addLog])
+
+  // Log confirmations
+  useEffect(() => {
+    if (cancelSuccess && !cancelReverted && cancelHash) {
+      addLog("success", `Order #${orderId} cancelled! Funds returned.`, cancelHash)
+    }
+  }, [cancelSuccess, cancelReverted, cancelHash, orderId, addLog])
+
+  useEffect(() => {
+    if (executeSuccess && !executeReverted && executeHash) {
+      addLog("success", `Order #${orderId} executed! Swap complete.`, executeHash)
+    }
+  }, [executeSuccess, executeReverted, executeHash, orderId, addLog])
 
   const getErrorMessage = (error: Error | null): string | null => {
     if (!error) return null
@@ -232,6 +260,7 @@ export function OrderCard({
     : true
 
   const handleCancel = () => {
+    addLog("info", `Cancelling Order #${orderId}...`)
     writeCancel({
       address: GHOST_VAULT_ADDRESS,
       abi: ghostVaultAbi,
@@ -242,6 +271,8 @@ export function OrderCard({
 
   const handleExecute = () => {
     if (!revealData) return
+    addLog("info", `Executing Order #${orderId}...`)
+    addLog("info", `Revealing: price=${revealData.targetPrice}, zeroForOne=${revealData.zeroForOne}`)
     writeExecute({
       address: GHOST_VAULT_ADDRESS,
       abi: ghostVaultAbi,
