@@ -1,14 +1,10 @@
 # GhostVault Protocol — Makefile
 
-#    make test-mock          Run 8 V1 mock tests (no RPC needed)
-#    make test-fork          Run 6 V1 fork tests (Base mainnet)
 #    make test-morpho        Run 3 standalone Morpho yield tests
-#    make test-all           Run all tests
 #    make test-v2-mock       Run 14 V2 mock tests (no RPC needed)
 #    make test-v2-fork       Run 7 V2 fork tests (Base mainnet)
-#    make build              Compile contracts
-#    make logs               Run all tests and save logs to test-logs/
-#    make clean-logs         Delete saved logs
+#    make demo-anvil         Run anvil fork of Base mainnet for manual testing/demo
+#    make demo-mock          Run automated demo script with mock oracle (supports time warping)
 
 # Load RPC URL from .env or .env.local
 ifneq (,$(wildcard .env))
@@ -119,41 +115,41 @@ demo-anvil:
 	@echo "Starting Anvil fork of Base mainnet (chain ID 31337)..."
 	anvil --fork-url $(BASE_MAINNET_RPC) --chain-id 31337
 
-demo-setup:
-	@echo "GhostVault Demo Setup"
-	@echo ""
-	@echo "[1/3] Wrapping ETH to WETH..."
-	@cast send $(WETH) "deposit()" --value 10ether --private-key $(DEMO_PK) --rpc-url $(ANVIL_RPC) > /dev/null
-	@echo "[2/3] Setting USDC balance..."
-	@cast rpc anvil_setStorageAt $(USDC) $$(cast index address $(DEMO_ACCOUNT) 9) 0x000000000000000000000000000000000000000000000000000000174876E800 --rpc-url $(ANVIL_RPC) > /dev/null
-	@echo "[3/3] Deploying GhostVaultHookV2..."
-	@source ~/.bashrc && DEPLOYER_PRIVATE_KEY=$(DEMO_PK) forge script script/DeployV2.s.sol --rpc-url $(ANVIL_RPC) --broadcast 2>&1 | tee /tmp/deploy_output.txt
-	@grep -o "V2 Hook deployed at: 0x[a-fA-F0-9]*" /tmp/deploy_output.txt | sed 's/V2 Hook deployed at: //' > .hook_address
-	@echo ""
-	@echo "Deployed hook address saved to .hook_address"
-	@cat .hook_address
-	@echo ""
-	@echo "Balances:"
-	@echo "  USDC: $$(cast call $(USDC) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
-	@echo "  WETH: $$(cast call $(WETH) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
-	@echo ""
-	@echo "Run 'make demo-full' for complete setup or 'make demo' for automated demo"
+# demo-setup:
+# 	@echo "GhostVault Demo Setup"
+# 	@echo ""
+# 	@echo "[1/3] Wrapping ETH to WETH..."
+# 	@cast send $(WETH) "deposit()" --value 10ether --private-key $(DEMO_PK) --rpc-url $(ANVIL_RPC) > /dev/null
+# 	@echo "[2/3] Setting USDC balance..."
+# 	@cast rpc anvil_setStorageAt $(USDC) $$(cast index address $(DEMO_ACCOUNT) 9) 0x000000000000000000000000000000000000000000000000000000174876E800 --rpc-url $(ANVIL_RPC) > /dev/null
+# 	@echo "[3/3] Deploying GhostVaultHookV2..."
+# 	@source ~/.bashrc && DEPLOYER_PRIVATE_KEY=$(DEMO_PK) forge script script/DeployV2.s.sol --rpc-url $(ANVIL_RPC) --broadcast 2>&1 | tee /tmp/deploy_output.txt
+# 	@grep -o "V2 Hook deployed at: 0x[a-fA-F0-9]*" /tmp/deploy_output.txt | sed 's/V2 Hook deployed at: //' > .hook_address
+# 	@echo ""
+# 	@echo "Deployed hook address saved to .hook_address"
+# 	@cat .hook_address
+# 	@echo ""
+# 	@echo "Balances:"
+# 	@echo "  USDC: $$(cast call $(USDC) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
+# 	@echo "  WETH: $$(cast call $(WETH) 'balanceOf(address)(uint256)' $(DEMO_ACCOUNT) --rpc-url $(ANVIL_RPC))"
+# 	@echo ""
+# 	@echo "Run 'make demo-full' for complete setup or 'make demo' for automated demo"
 
-demo-full: demo-setup
-	@echo ""
-	@echo "[4/5] Deploying SimpleYieldVault..."
-	@forge script script/UseSimpleVault.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
-	@echo ""
-	@echo "[5/5] Initializing pool + adding liquidity..."
-	@forge script script/InitPool.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
-	@echo ""
-	@echo "=== Demo Ready ==="
-	@echo "Hook: $$(cat .hook_address)"
-	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Set env vars: HOOK=\$$(cat .hook_address) USDC=$(USDC) WETH=$(WETH) PK=$(DEMO_PK) RPC=$(ANVIL_RPC)"
-	@echo "  2. Follow DEMO.md for commit/execute/cancel flows"
-	@echo ""
+# demo-full: demo-setup
+# 	@echo ""
+# 	@echo "[4/5] Deploying SimpleYieldVault..."
+# 	@forge script script/UseSimpleVault.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
+# 	@echo ""
+# 	@echo "[5/5] Initializing pool + adding liquidity..."
+# 	@forge script script/InitPool.s.sol --rpc-url $(ANVIL_RPC) --broadcast --private-key $(DEMO_PK) 2>&1 | tail -10
+# 	@echo ""
+# 	@echo "=== Demo Ready ==="
+# 	@echo "Hook: $$(cat .hook_address)"
+# 	@echo ""
+# 	@echo "Next steps:"
+# 	@echo "  1. Set env vars: HOOK=\$$(cat .hook_address) USDC=$(USDC) WETH=$(WETH) PK=$(DEMO_PK) RPC=$(ANVIL_RPC)"
+# 	@echo "  2. Follow DEMO.md for commit/execute/cancel flows"
+# 	@echo ""
 
 # Demo with Mock Oracle (supports YieldOrders + time warping)
 demo-mock:

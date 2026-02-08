@@ -144,94 +144,125 @@ These mechanisms reduce information leakage and protect against MEV extraction.
 
 ### Prerequisites
 
-| Tool                | Version | Installation                                                                                           |
-| ------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| **Foundry**         | Latest  | `curl -L https://foundry.paradigm.xyz \| bash && foundryup`                                            |
-| **Make**            | 3.8+    | macOS: `xcode-select --install` / Linux: `apt install build-essential` / Windows: `choco install make` |
-| **Node.js**         | 20+     | [nodejs.org](https://nodejs.org/) or `nvm install 20`                                                  |
-| **pnpm** (optional) | 8+      | `npm install -g pnpm`                                                                                  |
+| Tool        | Version | Installation                                                                                           |
+| ----------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| **Foundry** | Latest  | `curl -L https://foundry.paradigm.xyz \| bash && foundryup`                                            |
+| **Make**    | 3.8+    | macOS: `xcode-select --install` / Linux: `apt install build-essential` / Windows: `choco install make` |
+| **Node.js** | 20+     | [nodejs.org](https://nodejs.org/) or `nvm install 20`                                                  |
 
-### Environment Setup
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/umershaikh123/hackmoney-2026.git
-   cd hackmoney-2026
-   ```
-
-2. **Configure RPC** (required for Anvil fork)
-
-   ```bash
-   cd foundry
-   cp .env.example .env.local
-   # Edit .env.local and add your Base mainnet RPC:
-   # BASE_MAINNET_RPC=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   # Foundry dependencies
-   cd foundry
-   make install
-
-   # Frontend
-   cd ../frontend
-   npm install
-
-   # Agent (optional)
-   cd ../agent
-   npm install
-   ```
-
-### Quick Start (Demo)
-
-Open **3 terminals**:
+### Step 1: Clone & Install
 
 ```bash
-# Terminal 1: Start Anvil fork of Base mainnet
-cd foundry && make demo-anvil
-
-# Terminal 2: Deploy contracts (wait for Anvil to start first)
-cd foundry && make demo-mock
-
-# Terminal 3: Start frontend
-cd frontend && npm run dev
+git clone https://github.com/umershaikh123/hackmoney-2026.git
+cd hackmoney-2026
 ```
 
-4. Open http://localhost:3000
-5. Import Anvil test account into MetaMask:
-   - Private key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
-   - This account has 10 WETH + 100,000 USDC on the fork
+```bash
+# Install Foundry dependencies
+cd foundry
+make install
+```
 
-### Run Tests
+### Step 2: Configure RPC
+
+```bash
+cd foundry
+cp .env.example .env.local
+# Edit .env.local and add your Base mainnet RPC:
+# BASE_MAINNET_RPC=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+```
+
+### Step 3: Run Tests (Optional)
 
 ```bash
 cd foundry
 
-# Local tests (no RPC needed)
-make test-v2-mock    # 14 tests
-
-# Fork tests (requires BASE_MAINNET_RPC in .env.local)
-make test-v2-fork    # 7 tests
-
-# All tests
-make test-all
+make test-v2-mock    # 14 tests (no RPC needed)
+make test-v2-fork    # 7 tests (requires BASE_MAINNET_RPC)
+make test-morpho     # 3 tests (requires BASE_MAINNET_RPC)
 ```
 
-### Start Agent (Optional)
+### Step 4: Start Demo
+
+**Terminal 1** — Start Anvil fork:
+
+```bash
+cd foundry
+make demo-anvil
+```
+
+**Terminal 2** — Deploy contracts (wait for Anvil to start):
+
+```bash
+cd foundry
+make demo-mock
+```
+
+After deployment, you'll see output like:
+
+```
+HOOK:   0x1032dEC72453447221cf8f9034b6b3c5775880c0
+ORACLE: 0x0c6B4F1Eb417A6b660BC5B8c3cd2a146Ac182439
+```
+
+Copy these addresses for the next step.
+
+### Step 5: Configure Agent & Frontend
+
+**Agent** (`agent/.env`):
 
 ```bash
 cd agent
 cp .env.example .env
-
-# Edit .env:
-# SOLVER_PRIVATE_KEY=0x...  (Anvil account #2)
-# RPC_URL=http://127.0.0.1:8545
-
-npm run start             # Daemon mode (watches for orders)
 ```
+
+Edit `agent/.env`:
+
+```
+HOOK_ADDRESS=0x1032dEC72453447221cf8f9034b6b3c5775880c0
+ORACLE_ADDRESS=0x0c6B4F1Eb417A6b660BC5B8c3cd2a146Ac182439
+```
+
+**Frontend** (`frontend/.env`):
+
+```bash
+cd frontend
+cp .env.example .env
+```
+
+Edit `frontend/.env`:
+
+```
+NEXT_PUBLIC_GHOST_VAULT_ADDRESS=0x1032dEC72453447221cf8f9034b6b3c5775880c0
+NEXT_PUBLIC_ORACLE_ADDRESS=0x0c6B4F1Eb417A6b660BC5B8c3cd2a146Ac182439
+```
+
+### Step 6: Start Agent & Frontend
+
+**Terminal 3** — Start agent:
+
+```bash
+cd agent
+npm install
+npm run start
+```
+
+**Terminal 4** — Start frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Step 7: Connect Wallet
+
+1. Open http://localhost:3000
+2. Import Anvil test account into Rabby/MetaMask:
+   - Private key: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+   - This account has 10 WETH + 100,000 USDC
+
+> **Note**: Every time you restart Anvil, delete the imported account from your wallet, re-import it, and clear pending transactions in wallet settings.
 
 ---
 
@@ -279,7 +310,6 @@ hackmoney-2026/
 ## Links
 
 - [Future Steps](FUTURE.md) — Where we go from here
-- [Agent Documentation](agent/README.md) — How the solver works
 - [Contract Documentation](foundry/README.md) — Technical details
 
 ---
