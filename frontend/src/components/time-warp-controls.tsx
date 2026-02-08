@@ -5,6 +5,7 @@ import { usePublicClient, useBlock } from "wagmi"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLogStore } from "@/stores/log-store"
 
 const TIME_PRESETS = [
   { label: "1 Hour", seconds: 3600 },
@@ -19,12 +20,14 @@ export function TimeWarpControls() {
   const { data: block, refetch: refetchBlock } = useBlock({ watch: true })
   const [isWarping, setIsWarping] = useState(false)
   const [lastWarp, setLastWarp] = useState<string | null>(null)
+  const addLog = useLogStore(state => state.addLog)
 
   const handleWarp = async (seconds: number, label: string) => {
     if (!publicClient) return
 
     setIsWarping(true)
     setLastWarp(null)
+    addLog("time", `Warping time forward +${label}...`)
 
     try {
       // Call evm_increaseTime (Anvil-specific RPC)
@@ -44,9 +47,12 @@ export function TimeWarpControls() {
 
       // Invalidate all contract read queries to refresh order values
       queryClient.invalidateQueries({ queryKey: ["readContract"] })
+
+      addLog("time", `Time warped +${label}. Yield accruing...`)
     } catch (error) {
       console.error("Time warp failed:", error)
       setLastWarp("Failed")
+      addLog("error", `Time warp failed: ${error}`)
     } finally {
       setIsWarping(false)
     }
